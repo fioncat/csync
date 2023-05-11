@@ -1,0 +1,16 @@
+[package]
+name = "csync"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.71"
+arboard = "3.2.0"
+bincode = "1.3.3"
+clap = { version = "4.2.7", features = ["derive"] }
+indicatif = "0.17.3"
+serde = { version = "1.0.162", features = ["derive"] }
+serde_yaml = "0.9.21"
+tokio = { version = "1.28.1", features=["full"] }
