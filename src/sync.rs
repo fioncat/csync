@@ -185,7 +185,7 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                 let Packet {file, text, image} = packet;
                 if let Some(text) = text {
                     let need_update = match current_text.as_ref() {
-                        Some(current) => current.hash != text.hash,
+                        Some(current) => !current.eq(&text),
                         None => true,
                     };
                     if need_update {
