@@ -127,26 +127,34 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
     let interval = Duration::from_millis(cfg.interval);
     let mut intv = time::interval_at(start, interval);
 
-    let mut current_image = get_clipboard_image(&mut cb);
+    let current_image = get_clipboard_image(&mut cb);
+    let mut current_image_hash = match current_image {
+        Some(image) => Some(image.hash),
+        None => None,
+    };
+
     let mut current_text = get_clipboard_text(&mut cb);
     loop {
         tokio::select! {
             _ = intv.tick() => {
                 let mut need_send_image = false;
-                let image = get_clipboard_image(&mut cb);
+                let mut image = get_clipboard_image(&mut cb);
                 if let Some(image) = &image {
-                    match &current_image {
-                        Some(current) => {
-                            if current.hash != image.hash {
+                    match &current_image_hash {
+                        Some(current_hash) => {
+                            if !current_hash.eq(&image.hash) {
                                 need_send_image = true;
                             }
                         }
                         None => need_send_image = true,
                     }
                 }
+                if !need_send_image {
+                    image = None;
+                }
 
                 let mut need_send_text = false;
-                let text = get_clipboard_text(&mut cb);
+                let mut text = get_clipboard_text(&mut cb);
                 if let Some(text) = &text {
                     match &current_text {
                         Some(current) => {
@@ -156,6 +164,9 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                         }
                         None => need_send_text = true,
                     }
+                }
+                if !need_send_text {
+                    text = None;
                 }
 
                 if !need_send_text && !need_send_image {
@@ -174,7 +185,9 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                     current_text = text;
                 }
                 if need_send_image {
-                    current_image = image;
+                    if let Some(image) = image {
+                        current_image_hash = Some(image.hash);
+                    }
                 }
             }
             packet = receiver.recv() => {
@@ -194,13 +207,13 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                     }
                 }
                 if let Some(image) = image {
-                    let need_update = match current_image.as_ref() {
-                        Some(current) => current.hash != image.hash,
+                    let need_update = match current_image_hash.as_ref() {
+                        Some(current_hash) => !current_hash.eq(&image.hash),
                         None => true,
                     };
                     if need_update {
                         set_clipboard_image(&mut cb, &image);
-                        current_image = Some(image);
+                        current_image_hash = Some(image.hash);
                     }
                 }
                 if let Some(file) = file {
