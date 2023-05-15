@@ -10,19 +10,23 @@ use clap::Parser;
 
 use std::net::SocketAddr;
 
-/// Simple program to greet a person
+/// Sync clipboard between different machines via network.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Arg {
-    #[arg(short, long, default_value = "")]
+    /// TCP bind address.
+    #[arg(short, long, default_value = "0.0.0.0:9790")]
     pub bind: String,
 
+    /// Target addresses to sync clipboard, split with comma.
     #[arg(short, long, default_value = "")]
     pub target: String,
 
+    /// Interval (ms) to listen clipboard, must be in the range [50, 3000].
     #[arg(short, long, default_value = "300")]
     pub interval: u64,
 
+    /// The directory to write sync file.
     #[arg(short, long, default_value = "")]
     pub dir: String,
 }

@@ -1,5 +1,10 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::fs;
+use std::fs::OpenOptions;
+use std::io;
+use std::io::Write;
+use std::os::unix::prelude::OpenOptionsExt;
 
 use crate::client;
 use crate::config;
@@ -13,17 +18,17 @@ use serde::{Deserialize, Serialize};
 use tokio::time::{self, Duration, Instant};
 use tokio::{self, sync::mpsc};
 
-use log::error;
+use log::{error, info};
 
 pub const CHANNEL_SIZE: usize = 512;
 
-const SHA256_TEXT_SIZE: usize = 2048;
+const SHA256_TEXT_SIZE: usize = 1024 * 1024;
 
 const INCORRECT_CLIPBOARD_TYPE_ERROR: &str = "incorrect type received from clipboard";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Packet {
-    pub file: Option<String>,
+    pub file: Option<FileData>,
     pub text: Option<TextData>,
     pub image: Option<ImageData>,
 }
@@ -79,7 +84,7 @@ impl fmt::Display for Packet {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ImageData {
     pub data: Vec<u8>,
     pub width: usize,
@@ -88,10 +93,33 @@ pub struct ImageData {
     pub hash: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TextData {
     pub text: String,
-    pub hash: String,
+    pub hash: Option<String>,
+}
+
+impl TextData {
+    fn eq(&self, other: &TextData) -> bool {
+        match self.hash.as_ref() {
+            Some(hash) => match other.hash.as_ref() {
+                Some(o_hash) => hash == o_hash,
+                None => false,
+            },
+            None => match other.hash {
+                Some(_) => false,
+                None => self.text == other.text,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct FileData {
+    pub name: String,
+    pub mode: u32,
+
+    pub data: Vec<u8>,
 }
 
 pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::Receiver<Packet>) {
@@ -122,7 +150,7 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                 if let Some(text) = &text {
                     match &current_text {
                         Some(current) => {
-                            if current.hash != text.hash {
+                            if !current.eq(text) {
                                 need_send_text = true;
                             }
                         }
@@ -138,14 +166,15 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                     text,
                     image,
                 };
-                if need_send_text {
-                    current_text = packet.text.clone();
-                }
-                if need_send_image {
-                    current_image = packet.image.clone();
-                }
                 if let Err(err) = client::send(&cfg, &packet).await {
                     error!("Send packet error: {}", err);
+                }
+                let Packet { file: _, text, image } = packet;
+                if need_send_text {
+                    current_text = text;
+                }
+                if need_send_image {
+                    current_image = image;
                 }
             }
             packet = receiver.recv() => {
@@ -153,25 +182,29 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                     continue;
                 }
                 let packet = packet.unwrap();
-                if let Some(text) = packet.text.as_ref() {
+                let Packet {file, text, image} = packet;
+                if let Some(text) = text {
                     let need_update = match current_text.as_ref() {
                         Some(current) => current.hash != text.hash,
                         None => true,
                     };
                     if need_update {
                         set_clipboard_text(&mut cb, &text.text);
-                        current_text = Some(text.clone());
+                        current_text = Some(text);
                     }
                 }
-                if let Some(image) = packet.image.as_ref() {
+                if let Some(image) = image {
                     let need_update = match current_image.as_ref() {
                         Some(current) => current.hash != image.hash,
                         None => true,
                     };
                     if need_update {
                         set_clipboard_image(&mut cb, &image);
-                        current_image = Some(image.clone());
+                        current_image = Some(image);
                     }
+                }
+                if let Some(file) = file {
+                    sync_file(&cfg, file);
                 }
             }
         }
@@ -182,9 +215,9 @@ fn get_clipboard_text(cb: &mut Clipboard) -> Option<TextData> {
     match cb.get_text() {
         Ok(text) => {
             let hash = if text.len() <= SHA256_TEXT_SIZE {
-                text.clone()
+                None
             } else {
-                sha256::digest(text.as_str())
+                Some(sha256::digest(text.as_str()))
             };
             Some(TextData { text, hash })
         }
@@ -250,4 +283,42 @@ fn set_clipboard_image(cb: &mut Clipboard, image: &ImageData) {
         Ok(_) => {}
         Err(err) => error!("Write image into clipboard error: {}", err),
     }
+}
+
+fn sync_file(cfg: &config::Config, file: FileData) {
+    let path = cfg.dir.join(file.name);
+    let dir = path.parent();
+    if let Some(dir) = dir {
+        match fs::read_dir(dir) {
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                if let Err(err) = fs::create_dir_all(&dir) {
+                    error!("Create file dir {} error: {}", dir.display(), err);
+                }
+            }
+            Err(err) => error!("Read file dir {} error: {}", dir.display(), err),
+            Ok(_) => {}
+        }
+    }
+
+    let os_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(file.mode)
+        .open(&path);
+    if let Err(err) = os_file {
+        error!("Open file {} error: {}", path.display(), err);
+        return;
+    }
+    let mut os_file = os_file.unwrap();
+
+    if let Err(err) = os_file.write_all(&file.data) {
+        error!("Write file {} error: {}", path.display(), err);
+        return;
+    }
+    info!(
+        "Write {} to file {}",
+        human_bytes(file.data.len() as u32),
+        path.display()
+    );
 }
