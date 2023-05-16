@@ -18,11 +18,17 @@ use serde::{Deserialize, Serialize};
 use tokio::time::{self, Duration, Instant};
 use tokio::{self, sync::mpsc};
 
-use log::{error, info};
+use log::{error, info, warn};
 
 pub const CHANNEL_SIZE: usize = 512;
 
+// If the size of the text exceeds this value, it will be compared using SHA256
+// hash calculation to reduce memory pressure.
 const SHA256_TEXT_SIZE: usize = 1024 * 1024;
+
+// If the size of the data in the clipboard exceeds this value, it will not be
+// synchronized to prevent excessive pressure on the network and memory.
+const DATA_MAX_SIZE: u64 = 32 << 10;
 
 const INCORRECT_CLIPBOARD_TYPE_ERROR: &str = "incorrect type received from clipboard";
 
@@ -37,11 +43,9 @@ impl Packet {
     const VERSION: u32 = 1;
 
     pub fn decode(data: &[u8]) -> Result<Packet> {
-        const MAX_SIZE: u64 = 32 << 10; // 32 MiB
-
         let deserializer = &mut bincode::options()
             .with_fixint_encoding()
-            .with_limit(MAX_SIZE);
+            .with_limit(DATA_MAX_SIZE);
 
         let version_size = deserializer.serialized_size(&Self::VERSION).unwrap() as _;
         if data.len() < version_size {
@@ -122,11 +126,21 @@ pub struct FileData {
     pub data: Vec<u8>,
 }
 
+/// The purpose of the `start` function is to periodically check for changes in
+/// the images and text stored in the clipboard. If any changes are detected,
+/// the data is sent to the targets via socket for synchronization.
+/// Additionally, it also needs to handle requests from external sources to modify
+/// the clipboard. (from param `receiver`)
+/// The clipboard checking and modification are performed synchronously, so there
+/// is no need to worry about data consistency issues.
 pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::Receiver<Packet>) {
     let start = Instant::now();
     let interval = Duration::from_millis(cfg.interval);
     let mut intv = time::interval_at(start, interval);
 
+    // Here we only need to store the hash value of the image, as comparing the
+    // hash values is sufficient to determine if the image has changed.
+    // Saving the entire image would consume too much memory.
     let current_image = get_clipboard_image(&mut cb);
     let mut current_image_hash = match current_image {
         Some(image) => Some(image.hash),
@@ -146,6 +160,10 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                                 need_send_image = true;
                             }
                         }
+                        // If `current_image_hash` is `None`, it indicates that
+                        // there is currently no image in the clipboard.
+                        // In this case, we can send the image to the targets to
+                        // complete the initial synchronization.
                         None => need_send_image = true,
                     }
                 }
@@ -158,6 +176,12 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                 if let Some(text) = &text {
                     match &current_text {
                         Some(current) => {
+                            // For comparing text, the logic is as follows: Only
+                            // when the text is large (greater than the constant
+                            // `SHA256_TEXT_SIZE`) is the hash value used for
+                            // comparison. Otherwise, the text is compared directly.
+                            // This is a compromise solution that takes into account
+                            // both memory and CPU overhead.
                             if !current.eq(text) {
                                 need_send_text = true;
                             }
@@ -181,6 +205,8 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                     error!("Send packet error: {}", err);
                 }
                 let Packet { file: _, text, image } = packet;
+
+                // Update current state
                 if need_send_text {
                     current_text = text;
                 }
@@ -224,9 +250,26 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
     }
 }
 
+fn ignore_clipboard_error(err: &arboard::Error) -> bool {
+    // If an encoding error occurs while reading the clipboard, it is ignored.
+    // This is because `arboard` does not provide a universal method for reading
+    // the clipboard, and we need to read both images and text simultaneously.
+    // This can result in situations where we try to read text when the data in the
+    // clipboard is actually an image.
+    // Once the https://github.com/1Password/arboard/issues/11 is resolved, we will
+    // have a more elegant way to handle this.
+    match &err {
+        arboard::Error::Unknown { description } => description != INCORRECT_CLIPBOARD_TYPE_ERROR,
+        arboard::Error::ContentNotAvailable => true,
+        _ => false,
+    }
+}
+
 fn get_clipboard_text(cb: &mut Clipboard) -> Option<TextData> {
     match cb.get_text() {
         Ok(text) => {
+            // Only when the text is large (greater than the constant
+            // `SHA256_TEXT_SIZE`) is the SHA256 hash computed.
             let hash = if text.len() <= SHA256_TEXT_SIZE {
                 None
             } else {
@@ -235,16 +278,9 @@ fn get_clipboard_text(cb: &mut Clipboard) -> Option<TextData> {
             Some(TextData { text, hash })
         }
         Err(err) => {
-            match &err {
-                arboard::Error::Unknown { description } => {
-                    if description == INCORRECT_CLIPBOARD_TYPE_ERROR {
-                        return None;
-                    }
-                }
-                arboard::Error::ContentNotAvailable => return None,
-                _ => {}
+            if !ignore_clipboard_error(&err) {
+                error!("Read text from clipboard error: {}", err);
             }
-            error!("Read text from clipboard error: {}", err);
             None
         }
     }
@@ -262,6 +298,11 @@ fn get_clipboard_image(cb: &mut Clipboard) -> Option<ImageData> {
         Ok(image) => {
             let (width, height) = (image.width, image.height);
             let data = image.bytes.into_owned();
+            if data.len() > DATA_MAX_SIZE as _ {
+                let size = human_bytes(data.len() as u32);
+                warn!("Read a very huge image with {}, ignore it", size);
+                return None;
+            }
             let hash = sha256::digest::<&[u8]>(&data);
             Some(ImageData {
                 width,
@@ -271,16 +312,9 @@ fn get_clipboard_image(cb: &mut Clipboard) -> Option<ImageData> {
             })
         }
         Err(err) => {
-            match &err {
-                arboard::Error::Unknown { description } => {
-                    if description == INCORRECT_CLIPBOARD_TYPE_ERROR {
-                        return None;
-                    }
-                }
-                arboard::Error::ContentNotAvailable => return None,
-                _ => {}
+            if !ignore_clipboard_error(&err) {
+                error!("Read image from clipboard error: {}", err);
             }
-            error!("Read image from clipboard error: {}", err);
             None
         }
     }
@@ -317,6 +351,7 @@ fn sync_file(cfg: &config::Config, file: FileData) {
         .create(true)
         .write(true)
         .truncate(true)
+        // TODO: won't work on Windows
         .mode(file.mode)
         .open(&path);
     if let Err(err) = os_file {
