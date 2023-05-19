@@ -29,6 +29,10 @@ pub struct Arg {
     /// The directory to write sync file.
     #[arg(short, long, default_value = "")]
     pub dir: String,
+
+    /// The file to send.
+    #[arg(short, long)]
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,36 +52,36 @@ impl Arg {
             self.bind = parse_osstr(s)?;
         }
         if self.bind.is_empty() {
-            bail!("bind address could not be empty");
+            bail!("Bind address could not be empty");
         }
         let bind: SocketAddr = self
             .bind
             .parse()
-            .with_context(|| format!(r#"invalid bind address "{}""#, self.bind))?;
+            .with_context(|| format!(r#"Invalid bind address "{}""#, self.bind))?;
 
         if let Some(s) = env::var_os("CSYNC_CONFIG_TARGET") {
             self.target = parse_osstr(s)?;
         }
         if self.target.is_empty() {
-            bail!("invalid usage, the target could not be empty, please use `--target` or env `CSYNC_CONFIG_TARGET`");
+            bail!("Invalid usage, the target could not be empty, please use `--target` or env `CSYNC_CONFIG_TARGET`");
         }
         let endpoints: Vec<_> = self.target.split(",").collect();
         let mut targets: Vec<SocketAddr> = Vec::with_capacity(endpoints.len());
         for ep in endpoints {
             let addr: SocketAddr = ep
                 .parse()
-                .with_context(|| format!(r#"could not parse target address "{}""#, ep))?;
+                .with_context(|| format!(r#"Could not parse target address "{}""#, ep))?;
             targets.push(addr);
         }
 
         if let Some(s) = env::var_os("CSYNC_CONFIG_INTERVAL") {
             let interval = parse_osstr(s)?;
-            let interval: u64 = interval.parse().context("could not parse interval")?;
+            let interval: u64 = interval.parse().context("Could not parse interval")?;
             self.interval = interval;
         }
         if self.interval < 50 || self.interval > 3000 {
             bail!(
-                "invalid interval {}, It must be in the range [50,3000]",
+                "Invalid interval {}, It must be in the range [50,3000]",
                 self.interval
             );
         }
@@ -87,19 +91,19 @@ impl Arg {
         }
         let dir = if self.dir.is_empty() {
             dirs::data_local_dir()
-                .context("could not get data dir, please specify dir manually")?
+                .context("Could not get data dir, please specify dir manually")?
                 .join("csync")
         } else {
-            PathBuf::from_str(&self.dir).context("could not parse dir string")?
+            PathBuf::from_str(&self.dir).context("Could not parse dir string")?
         };
         match fs::read_dir(&dir) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 fs::create_dir_all(&dir)
-                    .with_context(|| format!(r#"could not create data dir "{}""#, dir.display()))?;
+                    .with_context(|| format!(r#"Could not create data dir "{}""#, dir.display()))?;
             }
             Err(err) => {
                 Err(err)
-                    .with_context(|| format!(r#"could not read data dir "{}""#, dir.display()))?;
+                    .with_context(|| format!(r#"Could not read data dir "{}""#, dir.display()))?;
             }
             Ok(_) => {}
         }
@@ -116,6 +120,6 @@ impl Arg {
 pub fn parse_osstr(s: OsString) -> Result<String> {
     match s.to_str() {
         Some(s) => Ok(s.to_string()),
-        None => bail!("parse string failed, please check your config"),
+        None => bail!("Parse string failed, please check your config"),
     }
 }

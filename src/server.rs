@@ -43,14 +43,14 @@ async fn handle(
     client
         .read_to_end(&mut raw_data)
         .await
-        .context("read data from client")?;
+        .context("Read data from client")?;
 
-    let packet = Packet::decode(&raw_data).context("decode data")?;
+    let packet = Packet::decode(&raw_data).context("Decode data")?;
 
     info!("Recv {} from {}", packet, addr);
     sender
         .send(packet)
         .await
-        .context("send packet to channel")?;
+        .context("Send packet to channel")?;
     Ok(())
 }

@@ -8,7 +8,7 @@ use crate::sync::Packet;
 use log::info;
 
 pub async fn send(cfg: &config::Config, packet: &Packet) -> Result<()> {
-    let data = packet.encode().context("encode packet")?;
+    let data = packet.encode().context("Encode packet")?;
 
     for addr in &cfg.targets {
         let socket = if addr.is_ipv4() {
@@ -16,16 +16,16 @@ pub async fn send(cfg: &config::Config, packet: &Packet) -> Result<()> {
         } else {
             TcpSocket::new_v6()
         }
-        .context("create tcp socket")?;
+        .context("Create tcp socket")?;
 
         let mut stream = socket
             .connect(addr.clone())
             .await
-            .with_context(|| format!(r#"connect to "{}""#, addr))?;
+            .with_context(|| format!(r#"Connect to "{}""#, addr))?;
         stream
             .write_all(&data)
             .await
-            .with_context(|| format!(r#"write to "{}""#, addr))?;
+            .with_context(|| format!(r#"Write to "{}""#, addr))?;
 
         info!(r#"Send {} to "{}""#, packet, addr);
     }

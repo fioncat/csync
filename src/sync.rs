@@ -49,14 +49,14 @@ impl Packet {
 
         let version_size = deserializer.serialized_size(&Self::VERSION).unwrap() as _;
         if data.len() < version_size {
-            bail!("could not decode packet: corrupted data");
+            bail!("Could not decode packet: corrupted data");
         }
         let (bytes_version, bytes_data) = data.split_at(version_size);
         let version = deserializer.deserialize(bytes_version)?;
 
         let packet: Packet = match version {
             Self::VERSION => deserializer.deserialize(bytes_data)?,
-            version => bail!("unsupported version {version}, supports: {}", Self::VERSION),
+            version => bail!("Unsupported version {version}, supports: {}", Self::VERSION),
         };
         Ok(packet)
     }
@@ -66,7 +66,7 @@ impl Packet {
             bincode::serialized_size(&Self::VERSION)? + bincode::serialized_size(self)?;
         if buffer_size > DATA_MAX_SIZE {
             let size = human_bytes(buffer_size as u32);
-            bail!("data is too huge {}, skip encoding", size);
+            bail!("Data is too huge {}, skip encoding", size);
         }
         let mut buffer = Vec::with_capacity(buffer_size as usize);
 
@@ -87,6 +87,13 @@ impl fmt::Display for Packet {
         if let Some(image) = self.image.as_ref() {
             let bytes = human_bytes(image.data.len() as u32);
             cmps.push(format!("{} Image", bytes));
+        }
+        if let Some(file) = self.file.as_ref() {
+            let bytes = human_bytes(file.data.len() as u32);
+            cmps.push(format!(
+                r#"File {{ Name: "{}", Mode: {}, Size: {} }}"#,
+                file.name, file.mode, bytes
+            ));
         }
         write!(f, "{{ {} }}", cmps.join(", "))
     }
