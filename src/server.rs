@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use anyhow::bail;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::{self, sync::mpsc};
@@ -14,22 +14,22 @@ use crate::sync::Packet;
 pub async fn start(cfg: &config::Config, sender: mpsc::Sender<Packet>) -> Result<()> {
     let listener = TcpListener::bind(&cfg.bind).await;
     if let Err(err) = listener {
-        bail!("unable to bind \"{}\": {}", cfg.bind, err)
+        bail!(r#"Bind "{}" error: {}"#, cfg.bind, err);
     }
     let listener = listener.unwrap();
 
-    info!("Begin to listen on \"{}\"", cfg.bind);
+    info!(r#"Begin to listen on "{}""#, cfg.bind);
     loop {
         match listener.accept().await {
             Ok((client, addr)) => {
                 let sender = sender.clone();
                 tokio::spawn(async move {
                     if let Err(err) = handle(client, addr, sender).await {
-                        error!("Handle error: {}", err);
+                        error!("Handle error: {:#}", err);
                     }
                 });
             }
-            Err(err) => error!("Accept connection error: {}", err),
+            Err(err) => error!("Accept connection error: {:#}", err),
         }
     }
 }
@@ -40,19 +40,17 @@ async fn handle(
     sender: mpsc::Sender<Packet>,
 ) -> Result<()> {
     let mut raw_data = Vec::with_capacity(512);
-    if let Err(err) = client.read_to_end(&mut raw_data).await {
-        bail!("failed to read data from client: {}", err)
-    }
+    client
+        .read_to_end(&mut raw_data)
+        .await
+        .context("read data from client")?;
 
-    let packet = Packet::decode(&raw_data);
-    if let Err(err) = packet {
-        bail!("failed to decode data: {}", err)
-    }
-    let packet = packet.unwrap();
+    let packet = Packet::decode(&raw_data).context("decode data")?;
 
     info!("Recv {} from {}", packet, addr);
-    if let Err(err) = sender.send(packet).await {
-        bail!("failed to send packet to inner channel: {}", err)
-    }
+    sender
+        .send(packet)
+        .await
+        .context("send packet to channel")?;
     Ok(())
 }

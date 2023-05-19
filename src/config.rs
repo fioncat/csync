@@ -48,25 +48,25 @@ impl Arg {
             self.bind = parse_osstr(s)?;
         }
         if self.bind.is_empty() {
-            bail!("bind address could not be empty")
+            bail!("bind address could not be empty");
         }
         let bind: SocketAddr = self
             .bind
             .parse()
-            .with_context(|| format!("invalid bind address {}", self.bind))?;
+            .with_context(|| format!(r#"invalid bind address "{}""#, self.bind))?;
 
         if let Some(s) = env::var_os("CSYNC_CONFIG_TARGET") {
             self.target = parse_osstr(s)?;
         }
         if self.target.is_empty() {
-            bail!("invalid usage, the target could not be empty, please use `--target` or env `CSYNC_CONFIG_TARGET`")
+            bail!("invalid usage, the target could not be empty, please use `--target` or env `CSYNC_CONFIG_TARGET`");
         }
         let endpoints: Vec<_> = self.target.split(",").collect();
         let mut targets: Vec<SocketAddr> = Vec::with_capacity(endpoints.len());
         for ep in endpoints {
             let addr: SocketAddr = ep
                 .parse()
-                .with_context(|| format!("could not parse target address {}", ep))?;
+                .with_context(|| format!(r#"could not parse target address "{}""#, ep))?;
             targets.push(addr);
         }
 
@@ -79,7 +79,7 @@ impl Arg {
             bail!(
                 "invalid interval {}, It must be in the range [50,3000]",
                 self.interval
-            )
+            );
         }
 
         if let Some(s) = env::var_os("CSYNC_CONFIG_DIR") {
@@ -95,10 +95,11 @@ impl Arg {
         match fs::read_dir(&dir) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 fs::create_dir_all(&dir)
-                    .with_context(|| format!("could not create data dir {}", dir.display()))?;
+                    .with_context(|| format!(r#"could not create data dir "{}""#, dir.display()))?;
             }
             Err(err) => {
-                Err(err).with_context(|| format!("could not read data dir {}", dir.display()))?;
+                Err(err)
+                    .with_context(|| format!(r#"could not read data dir "{}""#, dir.display()))?;
             }
             Ok(_) => {}
         }

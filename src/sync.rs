@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tokio::time::{self, Duration, Instant};
 use tokio::{self, sync::mpsc};
 
-use log::{error, info, warn};
+use log::{error, info};
 
 pub const CHANNEL_SIZE: usize = 512;
 
@@ -28,7 +28,7 @@ const SHA256_TEXT_SIZE: usize = 1024 * 1024;
 
 // If the size of the data in the clipboard exceeds this value, it will not be
 // synchronized to prevent excessive pressure on the network and memory.
-const DATA_MAX_SIZE: u64 = 32 << 10;
+const DATA_MAX_SIZE: u64 = 32 << 20;
 
 const INCORRECT_CLIPBOARD_TYPE_ERROR: &str = "incorrect type received from clipboard";
 
@@ -64,6 +64,10 @@ impl Packet {
     pub fn encode(&self) -> Result<Vec<u8>> {
         let buffer_size =
             bincode::serialized_size(&Self::VERSION)? + bincode::serialized_size(self)?;
+        if buffer_size > DATA_MAX_SIZE {
+            let size = human_bytes(buffer_size as u32);
+            bail!("data is too huge {}, skip encoding", size);
+        }
         let mut buffer = Vec::with_capacity(buffer_size as usize);
 
         bincode::serialize_into(&mut buffer, &Self::VERSION)?;
@@ -202,7 +206,7 @@ pub async fn start(cfg: config::Config, mut cb: Clipboard, mut receiver: mpsc::R
                     image,
                 };
                 if let Err(err) = client::send(&cfg, &packet).await {
-                    error!("Send packet error: {}", err);
+                    error!("Send packet error: {:#}", err);
                 }
                 let Packet { file: _, text, image } = packet;
 
@@ -259,7 +263,7 @@ fn ignore_clipboard_error(err: &arboard::Error) -> bool {
     // Once the https://github.com/1Password/arboard/issues/11 is resolved, we will
     // have a more elegant way to handle this.
     match &err {
-        arboard::Error::Unknown { description } => description != INCORRECT_CLIPBOARD_TYPE_ERROR,
+        arboard::Error::Unknown { description } => description == INCORRECT_CLIPBOARD_TYPE_ERROR,
         arboard::Error::ContentNotAvailable => true,
         _ => false,
     }
@@ -279,7 +283,7 @@ fn get_clipboard_text(cb: &mut Clipboard) -> Option<TextData> {
         }
         Err(err) => {
             if !ignore_clipboard_error(&err) {
-                error!("Read text from clipboard error: {}", err);
+                error!("Read text from clipboard error: {:#}", err);
             }
             None
         }
@@ -289,7 +293,7 @@ fn get_clipboard_text(cb: &mut Clipboard) -> Option<TextData> {
 fn set_clipboard_text(cb: &mut Clipboard, text: &String) {
     match cb.set_text(text) {
         Ok(_) => {}
-        Err(err) => error!("Write text into clipboard error: {}", err),
+        Err(err) => error!("Write text into clipboard error: {:#}", err),
     }
 }
 
@@ -298,11 +302,6 @@ fn get_clipboard_image(cb: &mut Clipboard) -> Option<ImageData> {
         Ok(image) => {
             let (width, height) = (image.width, image.height);
             let data = image.bytes.into_owned();
-            if data.len() > DATA_MAX_SIZE as _ {
-                let size = human_bytes(data.len() as u32);
-                warn!("Read a very huge image with {}, ignore it", size);
-                return None;
-            }
             let hash = sha256::digest::<&[u8]>(&data);
             Some(ImageData {
                 width,
@@ -313,7 +312,7 @@ fn get_clipboard_image(cb: &mut Clipboard) -> Option<ImageData> {
         }
         Err(err) => {
             if !ignore_clipboard_error(&err) {
-                error!("Read image from clipboard error: {}", err);
+                error!("Read image from clipboard error: {:#}", err);
             }
             None
         }
@@ -328,7 +327,7 @@ fn set_clipboard_image(cb: &mut Clipboard, image: &ImageData) {
     };
     match cb.set_image(cb_image) {
         Ok(_) => {}
-        Err(err) => error!("Write image into clipboard error: {}", err),
+        Err(err) => error!("Write image into clipboard error: {:#}", err),
     }
 }
 
@@ -339,10 +338,10 @@ fn sync_file(cfg: &config::Config, file: FileData) {
         match fs::read_dir(dir) {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 if let Err(err) = fs::create_dir_all(&dir) {
-                    error!("Create file dir {} error: {}", dir.display(), err);
+                    error!(r#"Create file dir "{}" error: {:#}"#, dir.display(), err);
                 }
             }
-            Err(err) => error!("Read file dir {} error: {}", dir.display(), err),
+            Err(err) => error!(r#"Read file dir "{}" error: {:#}"#, dir.display(), err),
             Ok(_) => {}
         }
     }
@@ -355,17 +354,17 @@ fn sync_file(cfg: &config::Config, file: FileData) {
         .mode(file.mode)
         .open(&path);
     if let Err(err) = os_file {
-        error!("Open file {} error: {}", path.display(), err);
+        error!(r#"Open file "{}" error: {:#}"#, path.display(), err);
         return;
     }
     let mut os_file = os_file.unwrap();
 
     if let Err(err) = os_file.write_all(&file.data) {
-        error!("Write file {} error: {}", path.display(), err);
+        error!(r#"Write file "{}" error: {}"#, path.display(), err);
         return;
     }
     info!(
-        "Write {} to file {}",
+        r#"Write {} to file "{}""#,
         human_bytes(file.data.len() as u32),
         path.display()
     );

@@ -42,7 +42,7 @@ async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            _ = writeln!(io::stderr(), "fatal: {err:?}");
+            _ = writeln!(io::stderr(), "fatal: {:#}", err);
             ExitCode::FAILURE
         }
     }
