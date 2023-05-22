@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-use anyhow::bail;
 use anyhow::{Context, Result};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -12,11 +11,9 @@ use crate::config;
 use crate::sync::Packet;
 
 pub async fn start(cfg: &config::Config, sender: mpsc::Sender<Packet>) -> Result<()> {
-    let listener = TcpListener::bind(&cfg.bind).await;
-    if let Err(err) = listener {
-        bail!(r#"Bind "{}" error: {}"#, cfg.bind, err);
-    }
-    let listener = listener.unwrap();
+    let listener = TcpListener::bind(&cfg.bind)
+        .await
+        .with_context(|| format!(r#"Bind "{}""#, cfg.bind))?;
 
     info!(r#"Begin to listen on "{}""#, cfg.bind);
     loop {
