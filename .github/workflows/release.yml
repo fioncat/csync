@@ -76,12 +76,12 @@ jobs:
         uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2.3.1
         with:
           name: ${{ matrix.target }}
-          path: *.tar.gz
+          path: "*.tar.gz"
 
       - name: Create release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           draft: true
-          files: *.tar.gz
+          files: "*.tar.gz"
           name: ${{ steps.get_version.outputs.value }}
           tag_name: ""
