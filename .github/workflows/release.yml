@@ -1,13 +1,9 @@
 name: release
 
-# on:
-#   push:
-#     tags:
-#       - '*'
 on:
   push:
-    branches:
-      - main
+    tags:
+      - '*'
 
 env:
   CARGO_INCREMENTAL: 0
@@ -37,13 +33,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Get version
-        id: get_version
-        uses: SebRollen/toml-action@2bd04b06a3ebc3e6a3eb6060de115710cad16cd6 # v1.0.2
-        with:
-          file: Cargo.toml
-          field: package.version
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -53,32 +42,30 @@ jobs:
       - name: Setup cross
         uses: taiki-e/install-action@cross
 
-      - name: Build binary
+      - name: Build binary [Cargo]
         if: matrix.os != 'ubuntu-latest'
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Build binary
+      - name: Build binary [Cross]
         if: matrix.os == 'ubuntu-latest'
         run: cross build --release --locked --target ${{ matrix.target }}
 
-      # - name: Package
-      #   run: >
-      #     tar -cv
-      #     LICENSE README.md
-      #     -C target/${{ matrix.target }}/release/ csync
-      #     | gzip --best
-      #     > 'csync_${{ matrix.target }}.tar.gz'
-      #
-      # - name: Upload artifact
-      #   uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2.3.1
-      #   with:
-      #     name: ${{ matrix.target }}
-      #     path: "*.tar.gz"
-      #
-      # - name: Create release
-      #   uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-      #   with:
-      #     draft: true
-      #     files: "*.tar.gz"
-      #     name: ${{ steps.get_version.outputs.value }}
-      #     tag_name: ""
+      - name: Package
+        run: >
+          tar -cv
+          LICENSE README.md
+          -C target/${{ matrix.target }}/release/ csync
+          | gzip --best
+          > 'csync_${{ matrix.target }}.tar.gz'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: "*.tar.gz"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: "*.tar.gz"
