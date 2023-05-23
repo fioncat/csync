@@ -26,7 +26,7 @@ async fn run() -> Result<()> {
 
     let mut arg = Arg::parse();
     let cfg = arg.normalize()?;
-    info!("{:?}", cfg);
+    info!("Use config: {:?}", cfg);
 
     let (mut syncer, sender) = Synchronizer::new(&cfg).await?;
     let mut server = Server::new(&cfg, sender).await?;

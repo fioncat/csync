@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::Cursor;
 use std::net::SocketAddr;
 
@@ -137,6 +138,27 @@ impl Frame {
         Self::skip(src, n)?;
 
         Ok(data)
+    }
+}
+
+impl fmt::Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use human_bytes::human_bytes;
+
+        match self {
+            Frame::Text(text) => {
+                let size = human_bytes(text.len() as u32);
+                write!(f, "{{{size} Text}}")
+            }
+            Frame::Image(width, height, data) => {
+                let size = human_bytes(data.len() as u32);
+                write!(f, "{{{size} Image, width={width}, height={height}}}")
+            }
+            Frame::File(name, mode, data) => {
+                let size = human_bytes(data.len() as u32);
+                write!(f, "{{{size} File, name={name}, mode={mode}}}")
+            }
+        }
     }
 }
 

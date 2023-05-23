@@ -4,7 +4,8 @@ use std::net::SocketAddr;
 
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
-use log::error;
+use human_bytes::human_bytes;
+use log::{debug, error, info};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{self, Duration, Instant, Interval};
 
@@ -78,6 +79,7 @@ impl Synchronizer {
     pub async fn run(&mut self, targets: &[SocketAddr]) {
         use tokio::select;
 
+        info!("Start to sync clipboard");
         loop {
             select! {
                 _ = self.clipboard_intv.tick() => {
@@ -109,6 +111,7 @@ impl Synchronizer {
             return Ok(conn);
         }
 
+        debug!("Create connection to {target}");
         Client::dial(target).await
     }
 
@@ -123,6 +126,7 @@ impl Synchronizer {
         let now = Instant::now();
         for (addr, expire) in &self.conn_expire {
             if now >= *expire {
+                debug!("Drop expired connection {addr}");
                 self.conn_pool.remove(addr);
             }
         }
@@ -140,15 +144,16 @@ impl Synchronizer {
                 return Ok(());
             }
         }
+        debug!("Clipboard text changed: `{}`", escape_string(hash.as_str()));
+        self.current_text_hash = Some(hash);
 
         let frame = Frame::Text(text.text);
         for target in targets {
             let mut conn = self.get_conn(target).await?;
             conn.write_frame(&frame).await?;
             self.save_conn(target, conn);
+            debug!("Send {frame} to {target}");
         }
-
-        self.current_text_hash = Some(hash);
 
         Ok(())
     }
@@ -172,15 +177,19 @@ impl Synchronizer {
             data,
             hash,
         } = image;
+        debug!(
+            "Clipboard image changed: `{}`",
+            escape_string(hash.as_str())
+        );
+        self.current_image_hash = Some(hash);
 
         let frame = Frame::Image(width as u64, height as u64, data.into());
         for target in targets {
             let mut conn = self.get_conn(target).await?;
             conn.write_frame(&frame).await?;
             self.save_conn(target, conn);
+            debug!("Send {frame} to {target}");
         }
-
-        self.current_image_hash = Some(hash);
 
         Ok(())
     }
@@ -197,6 +206,10 @@ impl Synchronizer {
                 }
                 text.save(&mut self.clipboard)?;
                 self.current_text_hash = Some(hash);
+                debug!(
+                    "Write {} text to clipboard",
+                    human_bytes(text.text.len() as u32)
+                );
             }
             Frame::Image(width, height, data) => {
                 use sha256::digest;
@@ -220,6 +233,10 @@ impl Synchronizer {
 
                 image.save(&mut self.clipboard)?;
                 self.current_image_hash = Some(image.hash);
+                debug!(
+                    "Write {} image to clipboard",
+                    human_bytes(image.data.len() as u32)
+                );
             }
             Frame::File(_name, _mode, _data) => {}
         }
@@ -316,5 +333,42 @@ impl ClipboardImage {
             bytes: Cow::from(&self.data),
         };
         cb.set_image(cb_image).context("Write image to clipboard")
+    }
+}
+
+/// Converts text with all the special characters escape with a backslash
+fn escape_string<'a>(text: &'a str) -> Cow<'a, str> {
+    let bytes = text.as_bytes();
+
+    let mut owned = None;
+
+    for pos in 0..bytes.len() {
+        let special = match bytes[pos] {
+            0x07 => Some(b'a'),
+            0x08 => Some(b'b'),
+            b'\t' => Some(b't'),
+            b'\n' => Some(b'n'),
+            0x0b => Some(b'v'),
+            0x0c => Some(b'f'),
+            b'\r' => Some(b'r'),
+            b' ' => Some(b' '),
+            b'\\' => Some(b'\\'),
+            _ => None,
+        };
+        if let Some(s) = special {
+            if owned.is_none() {
+                owned = Some(bytes[0..pos].to_owned());
+            }
+            owned.as_mut().unwrap().push(b'\\');
+            owned.as_mut().unwrap().push(s);
+        } else if let Some(owned) = owned.as_mut() {
+            owned.push(bytes[pos]);
+        }
+    }
+
+    if let Some(owned) = owned {
+        unsafe { Cow::Owned(String::from_utf8_unchecked(owned)) }
+    } else {
+        unsafe { Cow::Borrowed(std::str::from_utf8_unchecked(bytes)) }
     }
 }

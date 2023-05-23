@@ -1,17 +1,14 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use anyhow::Context;
-use anyhow::Result;
-use tokio::net::TcpListener;
-use tokio::net::TcpStream;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::Semaphore;
-use tokio::time;
-use tokio::time::Duration;
+use anyhow::{Context, Result};
+use log::debug;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::{mpsc::Sender, Semaphore};
+use tokio::time::{self, Duration};
 
 use crate::config::Config;
-use crate::net::Connection;
-use crate::net::Frame;
+use crate::net::{Connection, Frame};
 
 use log::{error, info};
 
@@ -41,7 +38,7 @@ impl Server {
     }
 
     pub async fn run(&mut self, cfg: &Config) -> Result<()> {
-        info!(r#"Start to listen "{}""#, cfg.bind);
+        info!("Start to listen `{}`", cfg.bind);
         loop {
             // Wait for a permit to become available
             //
@@ -53,12 +50,13 @@ impl Server {
             // closed. We don't ever close the semaphore, so `unwrap()` is safe.
             let permit = self.conn_limit.clone().acquire_owned().await.unwrap();
 
-            let socket = self.accept().await?;
+            let (socket, addr) = self.accept().await?;
 
             let sender = self.sender.clone();
 
             tokio::spawn(async move {
-                if let Err(err) = Self::handle(sender, socket).await {
+                debug!("Accpect connection from {addr}");
+                if let Err(err) = Self::handle(sender, socket, addr).await {
                     error!("Handle socket error: {err:#}");
                 }
                 // Move the permit into the task and drop it after completion.
@@ -68,12 +66,12 @@ impl Server {
         }
     }
 
-    async fn accept(&mut self) -> Result<TcpStream> {
+    async fn accept(&mut self) -> Result<(TcpStream, SocketAddr)> {
         let mut backoff = 1;
 
         loop {
             match self.listener.accept().await {
-                Ok((socket, _)) => return Ok(socket),
+                Ok((socket, addr)) => return Ok((socket, addr)),
                 Err(err) => {
                     if backoff > Self::ACCEPT_TCP_MAX_BACKOFF {
                         return Err(err).context("Accept tcp socket exceeded max backoff");
@@ -87,7 +85,7 @@ impl Server {
         }
     }
 
-    async fn handle(sender: Sender<Frame>, socket: TcpStream) -> Result<()> {
+    async fn handle(sender: Sender<Frame>, socket: TcpStream, addr: SocketAddr) -> Result<()> {
         let mut conn = Connection::new(socket);
         loop {
             let frame = conn.read_frame().await?;
@@ -97,9 +95,13 @@ impl Server {
             // terminated.
             let frame = match frame {
                 Some(frame) => frame,
-                None => return Ok(()),
+                None => {
+                    debug!("Connection {addr} closed");
+                    return Ok(());
+                }
             };
 
+            debug!("Recv {frame} from {addr}");
             sender.send(frame).await.context("Send frame to channel")?;
         }
     }
