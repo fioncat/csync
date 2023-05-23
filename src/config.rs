@@ -33,6 +33,16 @@ pub struct Arg {
     /// The file to send.
     #[arg(short, long)]
     pub file: Option<String>,
+
+    /// The maximum number of connections to serve, any excess connections
+    /// will be blocked.
+    #[arg(long, default_value = "50")]
+    pub conn_max: u32,
+
+    /// The connection reuse time (s), if the connection is not used for more
+    /// than this time, it will be released. Must be in the range [50, 600].
+    #[arg(long, default_value = "120")]
+    pub conn_live: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +54,9 @@ pub struct Config {
     pub interval: u64,
 
     pub dir: PathBuf,
+
+    pub conn_max: u32,
+    pub conn_live: u32,
 }
 
 impl Arg {
@@ -108,11 +121,24 @@ impl Arg {
             Ok(_) => {}
         }
 
+        if self.conn_max <= 0 {
+            bail!("Invalid conn-max, could not be zero");
+        }
+
+        if self.conn_live < 50 || self.conn_live > 600 {
+            bail!(
+                "Invalid conn-live {}, It must be in the range [50,600]",
+                self.conn_live
+            );
+        }
+
         Ok(Config {
             bind,
             targets,
             interval: self.interval,
             dir,
+            conn_max: 0,
+            conn_live: 0,
         })
     }
 }
