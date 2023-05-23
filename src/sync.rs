@@ -124,11 +124,16 @@ impl Synchronizer {
 
     fn flush_conn(&mut self) {
         let now = Instant::now();
+        let mut clean = Vec::new();
         for (addr, expire) in &self.conn_expire {
             if now >= *expire {
                 debug!("Drop expired connection {addr}");
                 self.conn_pool.remove(addr);
+                clean.push(addr.clone());
             }
+        }
+        for addr in clean {
+            self.conn_expire.remove(&addr);
         }
     }
 

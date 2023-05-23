@@ -39,8 +39,8 @@ pub struct Arg {
     #[arg(long, default_value = "50")]
     pub conn_max: u32,
 
-    /// The connection reuse time (s), if the connection is not used for more
-    /// than this time, it will be released. Must be in the range [50, 600].
+    /// The connection live time (s), if the connection is not used for more
+    /// than this time, it will be released. Must be in the range [10, 600].
     #[arg(long, default_value = "120")]
     pub conn_live: u32,
 }
@@ -125,9 +125,9 @@ impl Arg {
             bail!("Invalid conn-max, could not be zero");
         }
 
-        if self.conn_live < 50 || self.conn_live > 600 {
+        if self.conn_live < 10 || self.conn_live > 600 {
             bail!(
-                "Invalid conn-live {}, It must be in the range [50,600]",
+                "Invalid conn-live {}, It must be in the range [10,600]",
                 self.conn_live
             );
         }
@@ -137,8 +137,8 @@ impl Arg {
             targets,
             interval: self.interval,
             dir,
-            conn_max: 0,
-            conn_live: 0,
+            conn_max: self.conn_max,
+            conn_live: self.conn_live,
         })
     }
 }
