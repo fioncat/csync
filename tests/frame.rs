@@ -96,4 +96,53 @@ async fn frame_image() {
 }
 
 #[tokio::test]
-async fn frame_mix() {}
+async fn frame_mix() {
+    const LOOP_LEN: usize = 200;
+    let addr = "0.0.0.0:9825";
+
+    let bind: SocketAddr = addr.parse().unwrap();
+    let listener = TcpListener::bind(&bind).await.unwrap();
+    let (tx, rx) = oneshot::channel();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let mut conn = Connection::new(socket);
+
+        for i in 0..LOOP_LEN {
+            let frame = conn.read_frame().await.unwrap().unwrap();
+            match frame {
+                Frame::Image(width, height, data) => {
+                    let expect_width = (i * 10) as u64;
+                    let expect_height = (i * 50) as u64;
+                    assert_eq!(width, expect_width);
+                    assert_eq!(height, expect_height);
+
+                    let expect_data = format!("Hello image\r\nindex={i}");
+                    let expect_data = expect_data.as_bytes();
+                    assert_eq!(data, expect_data);
+                }
+                Frame::Text(text) => {
+                    let expect_text = format!("Hello text\r\nindex={i}");
+                    assert_eq!(text, expect_text);
+                }
+                _ => panic!("unexpected frame type"),
+            }
+        }
+        tx.send(()).unwrap();
+    });
+
+    let mut client = Client::dial_string("127.0.0.1:9825").await.unwrap();
+    for i in 0..LOOP_LEN {
+        if let 0 = i % 2 {
+            let width = (i * 10) as u64;
+            let height = (i * 50) as u64;
+            let data = format!("Hello image\r\nindex={i}");
+            client.send_image(width, height, data.into()).await.unwrap();
+        } else {
+            let text = format!("Hello text\r\nindex={i}");
+            client.send_text(text).await.unwrap();
+        }
+    }
+
+    rx.await.unwrap();
+}

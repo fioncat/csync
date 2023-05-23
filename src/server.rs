@@ -7,7 +7,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc::Sender, Semaphore};
 use tokio::time::{self, Duration};
 
-use crate::config::Config;
 use crate::net::{Connection, Frame};
 
 use log::{error, info};
@@ -17,28 +16,30 @@ pub struct Server {
     conn_limit: Arc<Semaphore>,
 
     sender: Sender<Frame>,
+
+    bind: SocketAddr,
 }
 
 impl Server {
     const ACCEPT_TCP_MAX_BACKOFF: u64 = 64;
 
-    pub async fn new(cfg: &Config, sender: Sender<Frame>) -> Result<Server> {
-        let listener = TcpListener::bind(&cfg.bind)
+    pub async fn new(bind: &SocketAddr, sender: Sender<Frame>, max_conn: usize) -> Result<Server> {
+        let listener = TcpListener::bind(bind)
             .await
-            .with_context(|| format!(r#"Bind "{}""#, cfg.bind))?;
+            .with_context(|| format!(r#"Bind "{}""#, bind))?;
 
-        let max_conn = cfg.conn_max as usize;
         let conn_limit = Arc::new(Semaphore::new(max_conn));
 
         Ok(Server {
             listener,
             conn_limit,
             sender,
+            bind: bind.clone(),
         })
     }
 
-    pub async fn run(&mut self, cfg: &Config) -> Result<()> {
-        info!("Start to listen `{}`", cfg.bind);
+    pub async fn run(&mut self) -> Result<()> {
+        info!("Start to listen `{}`", self.bind);
         loop {
             // Wait for a permit to become available
             //
