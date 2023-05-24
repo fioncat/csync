@@ -47,6 +47,9 @@ impl Auth {
     }
 
     fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
+        if data.len() <= 12 {
+            return Err(Error::Auth);
+        }
         let nonce = &data[..12];
         let cipher_data = &data[12..];
 
@@ -376,7 +379,6 @@ impl Client {
         })
     }
 
-    #[allow(dead_code)]
     pub fn with_auth(&mut self, auth: Auth) {
         self.auth = Some(auth);
     }
