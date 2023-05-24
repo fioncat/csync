@@ -1,11 +1,16 @@
+use core::fmt;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::io;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
 use human_bytes::human_bytes;
 use log::{debug, error, info};
+use tokio::fs::{self, OpenOptions};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{self, Duration, Instant, Interval};
 
@@ -18,8 +23,7 @@ pub struct Synchronizer {
     conn_pool: HashMap<String, Client>,
     conn_expire: HashMap<String, Instant>,
 
-    current_text_hash: Option<String>,
-    current_image_hash: Option<String>,
+    current_hash: Option<String>,
 
     clipboard: Clipboard,
 
@@ -38,15 +42,9 @@ impl Synchronizer {
         let mut clipboard = Clipboard::new().context("Init clipboard driver")?;
         let (sender, receiver) = mpsc::channel::<Frame>(cfg.conn_max as usize);
 
-        let current_text = ClipboardText::read(&mut clipboard)?;
-        let current_text_hash = match current_text {
-            Some(text) => Some(text.get_hash()),
-            None => None,
-        };
-
-        let current_image = ClipboardImage::read(&mut clipboard)?;
-        let current_image_hash = match current_image {
-            Some(image) => Some(image.hash),
+        let current = ClipboardData::read(&mut clipboard).context("Read clipboard")?;
+        let current_hash = match current {
+            Some(data) => Some(data.get_hash()),
             None => None,
         };
 
@@ -61,8 +59,7 @@ impl Synchronizer {
             conn_pool,
             conn_expire,
 
-            current_text_hash,
-            current_image_hash,
+            current_hash,
 
             clipboard,
 
@@ -76,19 +73,15 @@ impl Synchronizer {
         Ok((syncer, sender))
     }
 
-    pub async fn run(&mut self, targets: &[SocketAddr]) {
+    pub async fn run(&mut self, cfg: &Config) {
         use tokio::select;
 
         info!("Start to sync clipboard");
         loop {
             select! {
                 _ = self.clipboard_intv.tick() => {
-                    if let Err(err) = self.send_clipboard_text(targets).await {
-                        error!("Send clipboard text error: {err:#}");
-                        continue;
-                    }
-                    if let Err(err) = self.send_clipboard_image(targets).await {
-                        error!("Send clipboard image error: {err:#}");
+                    if let Err(err) = self.send_clipboard_data(&cfg.targets).await {
+                        error!("Send clipboard error: {err:#}");
                     }
                 }
                 _ = self.expire_intv.tick() => {
@@ -96,6 +89,11 @@ impl Synchronizer {
                 }
                 frame = self.receiver.recv() => {
                     if let Some(frame) = frame {
+                        if let Frame::File(name, mode, data) = &frame {
+                            if let Err(err) = self.recv_file(&cfg.dir, name, *mode, data).await {
+                                error!("Recv data error: {err:#}");
+                            }
+                        }
                         if let Err(err) = self.recv_clipboard(frame) {
                             error!("Recv clipboard error: {err:#}");
                         }
@@ -137,243 +135,228 @@ impl Synchronizer {
         }
     }
 
-    async fn send_clipboard_text(&mut self, targets: &[SocketAddr]) -> Result<()> {
-        let text = match ClipboardText::read(&mut self.clipboard).context("Read clipboard text")? {
-            Some(text) => text,
+    async fn send_clipboard_data(&mut self, targets: &[SocketAddr]) -> Result<()> {
+        let data = match ClipboardData::read(&mut self.clipboard)? {
+            Some(data) => data,
             None => return Ok(()),
         };
-        let hash = text.get_hash();
-
-        if let Some(current_text_hash) = &self.current_text_hash {
-            if current_text_hash.eq(&hash) {
+        let hash = data.get_hash();
+        if let Some(current_hash) = &self.current_hash {
+            if current_hash.eq(&hash) {
                 return Ok(());
             }
         }
-        debug!("Clipboard text changed: `{}`", escape_string(hash.as_str()));
-        self.current_text_hash = Some(hash);
+        self.current_hash = Some(hash);
+        debug!("Clipboard changed: {data}");
 
-        let frame = Frame::Text(text.text);
+        let frame = data.to_frame();
         for target in targets {
+            debug!("Send {frame} to {target}");
             let mut conn = self.get_conn(target).await?;
             conn.write_frame(&frame).await?;
             self.save_conn(target, conn);
-            debug!("Send {frame} to {target}");
-        }
-
-        Ok(())
-    }
-
-    async fn send_clipboard_image(&mut self, targets: &[SocketAddr]) -> Result<()> {
-        let image =
-            match ClipboardImage::read(&mut self.clipboard).context("Read clipboard image")? {
-                Some(image) => image,
-                None => return Ok(()),
-            };
-
-        if let Some(current_image_hash) = &self.current_image_hash {
-            if current_image_hash.eq(&image.hash) {
-                return Ok(());
-            }
-        }
-
-        let ClipboardImage {
-            width,
-            height,
-            data,
-            hash,
-        } = image;
-        debug!(
-            "Clipboard image changed: `{}`",
-            escape_string(hash.as_str())
-        );
-        self.current_image_hash = Some(hash);
-
-        let frame = Frame::Image(width as u64, height as u64, data.into());
-        for target in targets {
-            let mut conn = self.get_conn(target).await?;
-            conn.write_frame(&frame).await?;
-            self.save_conn(target, conn);
-            debug!("Send {frame} to {target}");
         }
 
         Ok(())
     }
 
     fn recv_clipboard(&mut self, frame: Frame) -> Result<()> {
-        match frame {
-            Frame::Text(text) => {
-                let text = ClipboardText { text };
-                let hash = text.get_hash();
-                if let Some(current_text_hash) = &self.current_text_hash {
-                    if current_text_hash.eq(&hash) {
-                        return Ok(());
-                    }
-                }
-                text.save(&mut self.clipboard)?;
-                self.current_text_hash = Some(hash);
-                debug!(
-                    "Write {} text to clipboard",
-                    human_bytes(text.text.len() as u32)
-                );
+        let data = ClipboardData::from_frame(frame);
+        let hash = data.get_hash();
+        if let Some(current_hash) = &self.current_hash {
+            if current_hash.eq(&hash) {
+                return Ok(());
             }
-            Frame::Image(width, height, data) => {
-                use sha256::digest;
-
-                let width = width as usize;
-                let height = height as usize;
-                let data = data.to_vec();
-                let hash = digest::<&[u8]>(&data);
-                let image = ClipboardImage {
-                    width,
-                    height,
-                    data,
-                    hash,
-                };
-
-                if let Some(current_image_hash) = &self.current_image_hash {
-                    if current_image_hash.eq(&image.hash) {
-                        return Ok(());
-                    }
-                }
-
-                image.save(&mut self.clipboard)?;
-                self.current_image_hash = Some(image.hash);
-                debug!(
-                    "Write {} image to clipboard",
-                    human_bytes(image.data.len() as u32)
-                );
-            }
-            Frame::File(_name, _mode, _data) => {}
         }
+        debug!("Write {data} to clipboard");
+        data.save(&mut self.clipboard).context("Save clipboard")?;
+        Ok(())
+    }
+
+    async fn recv_file(
+        &mut self,
+        dir: &PathBuf,
+        name: &String,
+        mode: u32,
+        data: &[u8],
+    ) -> Result<()> {
+        let path = dir.join(name);
+        let dir = path.parent();
+        debug!(
+            "Write {} data to file {}, mode {}",
+            human_bytes(data.len() as u32),
+            path.display(),
+            mode
+        );
+
+        if let Some(dir) = dir {
+            match fs::read_dir(dir).await {
+                Err(err) if err.kind() == io::ErrorKind::NotFound => fs::create_dir_all(&dir)
+                    .await
+                    .with_context(|| format!("Create directory {}", dir.display()))?,
+                Err(err) => {
+                    return Err(err).with_context(|| format!("Read directory {}", dir.display()))
+                }
+
+                Ok(_) => {}
+            }
+        }
+
+        let mut opts = OpenOptions::new();
+        opts.create(true).write(true).truncate(true).mode(mode);
+        let mut file = opts
+            .open(&path)
+            .await
+            .with_context(|| format!("Open file {}", path.display()))?;
+        file.write_all(data)
+            .await
+            .with_context(|| format!("Write file {}", path.display()))?;
+
         Ok(())
     }
 }
 
-/// If an encoding error occurs while reading the clipboard, it is ignored.
-/// This is because `arboard` does not provide a universal method for reading
-/// the clipboard, and we need to read both images and text simultaneously.
-/// This can result in situations where we try to read text when the data in the
-/// clipboard is actually an image.
-/// Once the https://github.com/1Password/arboard/issues/11 is resolved, we will
-/// have a more elegant way to handle this.
-fn ignore_clipboard_error(err: &arboard::Error) -> bool {
-    match &err {
-        arboard::Error::Unknown { description } => description == INCORRECT_CLIPBOARD_TYPE_ERROR,
-        arboard::Error::ContentNotAvailable => true,
-        _ => false,
-    }
+pub enum ClipboardData {
+    Text(String),
+    Image(u64, u64, Vec<u8>),
 }
 
-struct ClipboardText {
-    text: String,
-}
-
-impl ClipboardText {
+impl ClipboardData {
     // If the size of the text exceeds this value, it will be compared using SHA256
     // hash calculation to reduce memory pressure.
     const SHA256_TEXT_SIZE: usize = 1024 * 10;
 
-    fn read(cb: &mut Clipboard) -> Result<Option<ClipboardText>> {
+    pub fn read(cb: &mut Clipboard) -> Result<Option<ClipboardData>> {
         match cb.get_text() {
-            Ok(text) => Ok(Some(ClipboardText { text })),
+            Ok(text) => return Ok(Some(ClipboardData::Text(text))),
             Err(err) => {
-                if ignore_clipboard_error(&err) {
-                    return Ok(None);
+                if !Self::ignore_clipboard_error(&err) {
+                    return Err(anyhow!(err));
                 }
-                Err(anyhow!(err))
             }
         }
-    }
-
-    fn get_hash(&self) -> String {
-        use sha256::digest;
-        if self.text.len() < Self::SHA256_TEXT_SIZE {
-            return self.text.clone();
-        }
-        digest(self.text.as_str())
-    }
-
-    fn save(&self, cb: &mut Clipboard) -> Result<()> {
-        cb.set_text(&self.text).context("Write text to clipboard")
-    }
-}
-
-struct ClipboardImage {
-    width: usize,
-    height: usize,
-    data: Vec<u8>,
-
-    hash: String,
-}
-
-impl ClipboardImage {
-    fn read(cb: &mut Clipboard) -> Result<Option<ClipboardImage>> {
-        use sha256::digest;
-
         match cb.get_image() {
             Ok(image) => {
-                let (width, height) = (image.width, image.height);
+                let (width, height) = (image.width as u64, image.height as u64);
                 let data = image.bytes.into_owned();
-                let hash = digest::<&[u8]>(&data);
-                Ok(Some(ClipboardImage {
-                    width,
-                    height,
-                    data,
-                    hash,
-                }))
+                return Ok(Some(ClipboardData::Image(width, height, data)));
             }
             Err(err) => {
-                if ignore_clipboard_error(&err) {
-                    return Ok(None);
+                if !Self::ignore_clipboard_error(&err) {
+                    return Err(anyhow!(err));
                 }
-                Err(anyhow!(err))
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn save(&self, cb: &mut Clipboard) -> Result<()> {
+        match self {
+            ClipboardData::Text(text) => cb.set_text(text).context("Write text to clipboard"),
+            ClipboardData::Image(width, height, data) => {
+                let cb_image = arboard::ImageData {
+                    width: *width as usize,
+                    height: *height as usize,
+                    bytes: Cow::from(data),
+                };
+                cb.set_image(cb_image).context("Write image to clipboard")
             }
         }
     }
 
-    fn save(&self, cb: &mut Clipboard) -> Result<()> {
-        let cb_image = arboard::ImageData {
-            width: self.width,
-            height: self.height,
-            bytes: Cow::from(&self.data),
-        };
-        cb.set_image(cb_image).context("Write image to clipboard")
+    pub fn get_hash(&self) -> String {
+        use sha256::digest;
+
+        match self {
+            ClipboardData::Text(text) => {
+                if text.len() < Self::SHA256_TEXT_SIZE {
+                    text.clone()
+                } else {
+                    digest(text.as_str())
+                }
+            }
+            ClipboardData::Image(_, _, data) => digest::<&[u8]>(data),
+        }
+    }
+
+    pub fn from_frame(frame: Frame) -> ClipboardData {
+        match frame {
+            Frame::Text(text) => ClipboardData::Text(text),
+            Frame::Image(width, height, data) => ClipboardData::Image(width, height, data.to_vec()),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn to_frame(self) -> Frame {
+        match self {
+            ClipboardData::Text(text) => Frame::Text(text),
+            ClipboardData::Image(width, height, data) => Frame::Image(width, height, data.into()),
+        }
+    }
+
+    /// If an encoding error occurs while reading the clipboard, it is ignored.
+    /// This is because `arboard` does not provide a universal method for reading
+    /// the clipboard, and we need to read both images and text simultaneously.
+    /// This can result in situations where we try to read text when the data in the
+    /// clipboard is actually an image.
+    /// Once the https://github.com/1Password/arboard/issues/11 is resolved, we will
+    /// have a more elegant way to handle this.
+    fn ignore_clipboard_error(err: &arboard::Error) -> bool {
+        match &err {
+            arboard::Error::Unknown { description } => {
+                description == INCORRECT_CLIPBOARD_TYPE_ERROR
+            }
+            arboard::Error::ContentNotAvailable => true,
+            _ => false,
+        }
+    }
+
+    /// Converts text with all the special characters escape with a backslash
+    fn escape_string<'a>(text: &'a str) -> Cow<'a, str> {
+        let bytes = text.as_bytes();
+
+        let mut owned = None;
+
+        for pos in 0..bytes.len() {
+            let special = match bytes[pos] {
+                0x07 => Some(b'a'),
+                0x08 => Some(b'b'),
+                b'\t' => Some(b't'),
+                b'\n' => Some(b'n'),
+                0x0b => Some(b'v'),
+                0x0c => Some(b'f'),
+                b'\r' => Some(b'r'),
+                b' ' => Some(b' '),
+                b'\\' => Some(b'\\'),
+                _ => None,
+            };
+            if let Some(s) = special {
+                if owned.is_none() {
+                    owned = Some(bytes[0..pos].to_owned());
+                }
+                owned.as_mut().unwrap().push(b'\\');
+                owned.as_mut().unwrap().push(s);
+            } else if let Some(owned) = owned.as_mut() {
+                owned.push(bytes[pos]);
+            }
+        }
+
+        if let Some(owned) = owned {
+            unsafe { Cow::Owned(String::from_utf8_unchecked(owned)) }
+        } else {
+            unsafe { Cow::Borrowed(std::str::from_utf8_unchecked(bytes)) }
+        }
     }
 }
 
-/// Converts text with all the special characters escape with a backslash
-fn escape_string<'a>(text: &'a str) -> Cow<'a, str> {
-    let bytes = text.as_bytes();
-
-    let mut owned = None;
-
-    for pos in 0..bytes.len() {
-        let special = match bytes[pos] {
-            0x07 => Some(b'a'),
-            0x08 => Some(b'b'),
-            b'\t' => Some(b't'),
-            b'\n' => Some(b'n'),
-            0x0b => Some(b'v'),
-            0x0c => Some(b'f'),
-            b'\r' => Some(b'r'),
-            b' ' => Some(b' '),
-            b'\\' => Some(b'\\'),
-            _ => None,
-        };
-        if let Some(s) = special {
-            if owned.is_none() {
-                owned = Some(bytes[0..pos].to_owned());
+impl fmt::Display for ClipboardData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ClipboardData::Text(text) => write!(f, "Text `{}`", Self::escape_string(text.as_str())),
+            ClipboardData::Image(width, height, data) => {
+                let size = human_bytes(data.len() as u32);
+                write!(f, "Image {size}, {width}, {height}")
             }
-            owned.as_mut().unwrap().push(b'\\');
-            owned.as_mut().unwrap().push(s);
-        } else if let Some(owned) = owned.as_mut() {
-            owned.push(bytes[pos]);
         }
-    }
-
-    if let Some(owned) = owned {
-        unsafe { Cow::Owned(String::from_utf8_unchecked(owned)) }
-    } else {
-        unsafe { Cow::Borrowed(std::str::from_utf8_unchecked(bytes)) }
     }
 }

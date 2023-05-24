@@ -31,8 +31,7 @@ async fn run() -> Result<()> {
     let (mut syncer, sender) = Synchronizer::new(&cfg).await?;
     let mut server = Server::new(&cfg.bind, sender, cfg.conn_max as usize).await?;
 
-    let targets = cfg.targets.clone();
-    tokio::spawn(async move { syncer.run(&targets).await });
+    tokio::spawn(async move { syncer.run(&cfg).await });
 
     server.run().await
 }
