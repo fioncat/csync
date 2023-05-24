@@ -46,7 +46,17 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Install cargo-wix [Windows]
+        continue-on-error: true
+        # aarch64 is only supported in wix 4.0 development builds
+        if: matrix.os == 'windows-latest' && matrix.target != 'aarch64-pc-windows-msvc'
+        run: cargo install --version 0.3.4 cargo-wix
+        env:
+          # cargo-wix does not require static crt
+          RUSTFLAGS: ""
+
       - name: Setup cross
+        if: matrix.os == 'ubuntu-latest'
         uses: taiki-e/install-action@cross
 
       - name: Build binary [Cargo]
@@ -68,7 +78,7 @@ jobs:
 
       - name: Package [Windows]
         if: matrix.os == 'windows-latest'
-        run: >
+        run: |
           cd target/${{ matrix.target }}/release
           7z a ../../../csync_${{ matrix.name }}.zip starship.exe
           cd -
