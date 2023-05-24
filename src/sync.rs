@@ -271,7 +271,11 @@ impl Synchronizer {
         }
 
         let mut opts = OpenOptions::new();
-        opts.create(true).write(true).truncate(true).mode(mode);
+        opts.create(true).write(true).truncate(true);
+
+        #[cfg(unix)]
+        opts.mode(mode);
+
         let mut file = opts
             .open(&path)
             .await
