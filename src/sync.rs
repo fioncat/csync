@@ -50,6 +50,7 @@ pub struct Synchronizer {
     /// The client expiration time.
     expire_duration: Duration,
 
+    /// The auth key.
     auth_key: Option<Vec<u8>>,
 }
 

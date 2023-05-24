@@ -10,29 +10,34 @@ use clap::Parser;
 
 use std::net::SocketAddr;
 
+use crate::net::Auth;
+
 /// Sync clipboard between different machines via network.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Arg {
-    /// TCP bind address.
+    /// TCP bind address. (env: CSYNC_CONFIG_BIND)
     #[arg(short, long, default_value = "0.0.0.0:9790")]
     pub bind: String,
 
     /// Target addresses to sync clipboard, split with comma.
+    /// (env: CSYNC_CONFIG_TARGET)
     #[arg(short, long, default_value = "")]
     pub target: String,
 
     /// If not empty, the clipboard data will be encrypted using the AES256-GCM
     /// algorithm. If your clipboard data is sensitive, it is recommended to set
     /// a password and replace it regularly.
-    #[arg(short, long, default_value = "")]
+    /// (env: CSYNC_CONFIG_PASSWORD)
+    #[arg(short, long)]
     pub password: Option<String>,
 
     /// Interval (ms) to listen clipboard, must be in the range [50, 3000].
+    /// (env: CSYNC_CONFIG_INTERVAL)
     #[arg(short, long, default_value = "300")]
     pub interval: u64,
 
-    /// The directory to write sync file.
+    /// The directory to write sync file. (env: CSYNC_CONFIG_DIR)
     #[arg(short, long, default_value = "")]
     pub dir: String,
 
@@ -95,6 +100,17 @@ impl Arg {
             targets.push(addr);
         }
 
+        if let Some(s) = env::var_os("CSYNC_CONFIG_PASSWORD") {
+            self.password = Some(parse_osstr(s)?);
+        }
+        let mut auth_key = None;
+        if let Some(pwd) = &self.password {
+            if pwd.len() >= 100 {
+                bail!("Invalid password, should be shorter than 100");
+            }
+            auth_key = Some(Auth::digest(pwd.clone()));
+        }
+
         if let Some(s) = env::var_os("CSYNC_CONFIG_INTERVAL") {
             let interval = parse_osstr(s)?;
             let interval: u64 = interval.parse().context("Could not parse interval")?;
@@ -138,16 +154,6 @@ impl Arg {
                 "Invalid conn-live {}, It must be in the range [10,600]",
                 self.conn_live
             );
-        }
-
-        let mut auth_key = None;
-        if let Some(pwd) = &self.password {
-            if pwd.len() >= 100 {
-                bail!("Invalid password, should be shorter than 100");
-            }
-            let key = sha256::digest(pwd.clone());
-            let key = &key.as_bytes()[..32];
-            auth_key = Some(key.to_vec());
         }
 
         Ok(Config {

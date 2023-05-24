@@ -23,20 +23,32 @@ pub enum Error {
     Auth,
 }
 
+/// Auth uses the AES256-GCM algorithm to encrypt and decrypt data.
 #[derive(Clone)]
 pub struct Auth {
     cipher: Aes256Gcm,
 }
 
-/// Auth uses the AES256-GCM algorithm to encrypt and decrypt data.
 impl Auth {
     /// Create a new Auth object with the given key, note that the length of
     /// `auth_key` must be 32, otherwise the function will panic.
+    ///
+    /// You can use `digest` to convert a string to an `auth_key`.
     pub fn new(auth_key: &[u8]) -> Auth {
         let key = Key::<Aes256Gcm>::from_slice(auth_key);
         let cipher = Aes256Gcm::new(key);
 
         Auth { cipher }
+    }
+
+    /// Convert a string to an `auth_key` (with len 32).
+    ///
+    /// The specific method is to calculate the sha256 of the password first, and
+    /// then split the first 32 bytes.
+    pub fn digest(password: String) -> Vec<u8> {
+        let key = sha256::digest(password);
+        let key = &key.as_bytes()[..32];
+        key.to_vec()
     }
 
     fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, Error> {
@@ -242,11 +254,7 @@ impl<'a> FrameParser<'a> {
     }
 
     fn parse_string(&self, data: &[u8]) -> Result<String, Error> {
-        let data = match self.auth {
-            Some(auth) => auth.decrypt(data)?,
-            None => data.to_vec(),
-        };
-        match String::from_utf8(data) {
+        match String::from_utf8(data.to_vec()) {
             Ok(text) => Ok(text),
             Err(_) => return Err(Error::Protocol("invalid text, not uft-8 string".into())),
         }
@@ -286,9 +294,10 @@ pub struct Connection {
     /// TCP stream to read or write data.
     stream: BufWriter<TcpStream>,
 
-    /// The read buffer
+    /// The read buffer.
     buffer: BytesMut,
 
+    /// The auther.
     auth: Option<Auth>,
 }
 
@@ -436,13 +445,7 @@ impl Client {
     }
 
     async fn write_line(&mut self, line: &String) -> Result<()> {
-        let data = line.as_bytes();
-        if let Some(auth) = &self.auth {
-            let cipher_data = auth.encrypt(data)?;
-            self.stream.write_all(&cipher_data).await?;
-        } else {
-            self.stream.write_all(data).await?;
-        }
+        self.stream.write_all(line.as_bytes()).await?;
         self.stream.write_all(b"\r\n").await?;
         Ok(())
     }

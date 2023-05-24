@@ -33,6 +33,7 @@ pub struct Server {
     /// The server bind address.
     bind: SocketAddr,
 
+    /// The auth key.
     auth_key: Option<Vec<u8>>,
 }
 
