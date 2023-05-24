@@ -2,6 +2,8 @@ use std::fmt;
 use std::io::Cursor;
 use std::net::SocketAddr;
 
+use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
+use aes_gcm::{Aes256Gcm, Key};
 use anyhow::{bail, Context, Result};
 use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
@@ -16,6 +18,43 @@ pub enum Error {
     /// Invalid message encoding
     #[error("Protocol error: {0}")]
     Protocol(String),
+
+    #[error("Auth message error")]
+    Auth,
+}
+
+#[derive(Clone)]
+pub struct Auth {
+    cipher: Aes256Gcm,
+}
+
+impl Auth {
+    pub fn new(auth_key: &[u8]) -> Auth {
+        let key = Key::<Aes256Gcm>::from_slice(auth_key);
+        let cipher = Aes256Gcm::new(key);
+
+        Auth { cipher }
+    }
+
+    fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, Error> {
+        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+        let mut data = match self.cipher.encrypt(&nonce, plain) {
+            Ok(data) => data,
+            Err(_) => return Err(Error::Auth),
+        };
+        data.splice(..0, nonce);
+        Ok(data)
+    }
+
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
+        let nonce = &data[..12];
+        let cipher_data = &data[12..];
+
+        match self.cipher.decrypt(nonce.into(), cipher_data) {
+            Ok(plain) => Ok(plain),
+            Err(_) => Err(Error::Auth),
+        }
+    }
 }
 
 /// A frame in the csync protocol.
@@ -26,47 +65,104 @@ pub enum Frame {
     File(String, u32, Bytes),
 }
 
-impl Frame {
+struct FrameParser<'a> {
+    cursor: Cursor<&'a [u8]>,
+    auth: Option<&'a Auth>,
+}
+
+impl<'a> FrameParser<'a> {
     pub const PROTOCOL_TEXT: u8 = b't';
     pub const PROTOCOL_IMAGE: u8 = b'i';
     pub const PROTOCOL_FILE: u8 = b'f';
 
-    /// Checks if an entire message can be decoded from `src`
-    pub fn check(src: &mut Cursor<&[u8]>) -> Result<(), Error> {
-        match Self::get_u8(src)? {
-            Self::PROTOCOL_TEXT => Self::check_data(src),
+    fn new(buffer: &BytesMut) -> FrameParser {
+        FrameParser {
+            cursor: Cursor::new(&buffer[..]),
+            auth: None,
+        }
+    }
+
+    fn with_auth(&mut self, auth: &'a Auth) {
+        self.auth = Some(auth);
+    }
+
+    fn parse(&mut self) -> Result<Option<(Frame, usize)>, Error> {
+        // The first step is to check if enough data has been buffered to parse
+        // a single frame. This step is usually much faster than doing a full
+        // parse of the frame, and allows us to skip allocating data structures
+        // to hold the frame data unless we know the full frame has been
+        // received.
+        match self.check() {
+            Ok(_) => {
+                // The `check` function will have advanced the cursor until the
+                // end of the frame. Since the cursor had position set to zero
+                // before `Frame::check` was called, we obtain the length of the
+                // frame by checking the cursor position.
+                let len = self.cursor.position() as usize;
+
+                // Reset the position to zero before passing the cursor to
+                // `Frame::parse`.
+                self.cursor.set_position(0);
+
+                // Parse the frame from the buffer. This allocates the necessary
+                // structures to represent the frame and returns the frame
+                // value.
+                //
+                // If the encoded frame representation is invalid, an error is
+                // returned. This should terminate the **current** connection
+                // but should not impact any other connected client.
+                let frame = self.parse_frame()?;
+
+                Ok(Some((frame, len)))
+            }
+            // There is not enough data present in the read buffer to parse a
+            // single frame. We must wait for more data to be received from the
+            // socket. Reading from the socket will be done in the statement
+            // after this `match`.
+            //
+            // We do not want to return `Err` from here as this "error" is an
+            // expected runtime condition.
+            Err(Error::Incomplete) => Ok(None),
+
+            Err(err) => Err(err),
+        }
+    }
+
+    fn check(&mut self) -> Result<(), Error> {
+        match self.get_u8()? {
+            Self::PROTOCOL_TEXT => self.check_data(),
             Self::PROTOCOL_IMAGE => {
-                Self::get_decimal(src)?; // width
-                Self::get_decimal(src)?; // height
-                Self::check_data(src)
+                self.get_decimal()?; // width
+                self.get_decimal()?; // height
+                self.check_data()
             }
             Self::PROTOCOL_FILE => {
-                Self::get_line(src)?; // file name
-                Self::get_decimal(src)?; // file mode
-                Self::check_data(src)
+                self.get_line()?; // file name
+                self.get_decimal()?; // file mode
+                self.check_data()
             }
             actual => Err(Error::Protocol(format!("invalid frame type `{actual}`"))),
         }
     }
 
-    /// The message has already been validated with `check`.
-    pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Frame, Error> {
-        match Self::get_u8(src)? {
+    fn parse_frame(&mut self) -> Result<Frame, Error> {
+        match self.get_u8()? {
             Self::PROTOCOL_TEXT => {
-                let data = Self::get_data(src)?;
-                let text = Self::parse_string(data.to_vec())?;
+                let data = self.get_data()?;
+                let text = self.parse_string(&data)?;
                 Ok(Frame::Text(text))
             }
             Self::PROTOCOL_IMAGE => {
-                let width = Self::get_decimal(src)?;
-                let height = Self::get_decimal(src)?;
-                let data = Self::get_data(src)?;
+                let width = self.get_decimal()?;
+                let height = self.get_decimal()?;
+                let data = self.get_data()?;
                 Ok(Frame::Image(width, height, data))
             }
             Self::PROTOCOL_FILE => {
-                let name = Self::parse_string(Self::get_line(src)?.to_vec())?;
-                let mode = Self::get_decimal(src)? as u32;
-                let data = Self::get_data(src)?;
+                let name_data = self.get_line()?;
+                let name = self.parse_string(name_data)?;
+                let mode = self.get_decimal()? as u32;
+                let data = self.get_data()?;
 
                 Ok(Frame::File(name, mode, data))
             }
@@ -74,70 +170,77 @@ impl Frame {
         }
     }
 
-    fn check_data(src: &mut Cursor<&[u8]>) -> Result<(), Error> {
-        let len = Self::get_decimal(src)? as usize;
-        Self::skip(src, len + 2)?;
+    fn get_u8(&mut self) -> Result<u8, Error> {
+        if !self.cursor.has_remaining() {
+            return Err(Error::Incomplete);
+        }
+        Ok(self.cursor.get_u8())
+    }
+
+    fn check_data(&mut self) -> Result<(), Error> {
+        let len = self.get_decimal()? as usize;
+        self.skip(len + 2)?;
         Ok(())
     }
 
-    fn parse_string(data: Vec<u8>) -> Result<String, Error> {
-        match String::from_utf8(data) {
-            Ok(text) => Ok(text),
-            Err(_) => return Err(Error::Protocol("invalid text, not uft-8 string".into())),
-        }
-    }
-
-    fn get_u8(src: &mut Cursor<&[u8]>) -> Result<u8, Error> {
-        if !src.has_remaining() {
-            return Err(Error::Incomplete);
-        }
-        Ok(src.get_u8())
-    }
-
-    fn skip(src: &mut Cursor<&[u8]>, n: usize) -> Result<(), Error> {
-        if src.remaining() < n {
-            return Err(Error::Incomplete);
-        }
-        src.advance(n);
-        Ok(())
-    }
-
-    fn get_line<'a>(src: &mut Cursor<&'a [u8]>) -> Result<&'a [u8], Error> {
-        let start = src.position() as usize;
-        let end = src.get_ref().len() - 1;
+    fn get_line(&mut self) -> Result<&'a [u8], Error> {
+        let start = self.cursor.position() as usize;
+        let end = self.cursor.get_ref().len() - 1;
 
         for i in start..end {
-            if src.get_ref()[i] == b'\r' && src.get_ref()[i + 1] == b'\n' {
-                src.set_position((i + 2) as u64);
-                return Ok(&src.get_ref()[start..i]);
+            if self.cursor.get_ref()[i] == b'\r' && self.cursor.get_ref()[i + 1] == b'\n' {
+                self.cursor.set_position((i + 2) as u64);
+                return Ok(&self.cursor.get_ref()[start..i]);
             }
         }
         Err(Error::Incomplete)
     }
 
-    fn get_decimal(src: &mut Cursor<&[u8]>) -> Result<u64, Error> {
+    fn get_decimal(&mut self) -> Result<u64, Error> {
         use atoi::atoi;
-        let line = Self::get_line(src)?;
+        let line = self.get_line()?;
         match atoi::<u64>(line) {
             Some(num) => Ok(num),
             None => Err(Error::Protocol("invalid decimal".into())),
         }
     }
 
-    fn get_data(src: &mut Cursor<&[u8]>) -> Result<Bytes, Error> {
-        let len = Self::get_decimal(src)? as usize;
+    fn get_data(&mut self) -> Result<Bytes, Error> {
+        let len = self.get_decimal()? as usize;
         let n = len + 2 as usize;
 
-        if src.remaining() < len {
+        if self.cursor.remaining() < len {
             return Err(Error::Incomplete);
         }
 
-        let data = Bytes::copy_from_slice(&src.chunk()[..len]);
+        let mut data = Bytes::copy_from_slice(&self.cursor.chunk()[..len]);
+        if let Some(auth) = self.auth {
+            data = auth.decrypt(&data)?.into();
+        }
 
         // skip that number of bytes + 2 (\r\n)
-        Self::skip(src, n)?;
+        self.skip(n)?;
 
         Ok(data)
+    }
+
+    fn skip(&mut self, n: usize) -> Result<(), Error> {
+        if self.cursor.remaining() < n {
+            return Err(Error::Incomplete);
+        }
+        self.cursor.advance(n);
+        Ok(())
+    }
+
+    fn parse_string(&self, data: &[u8]) -> Result<String, Error> {
+        let data = match self.auth {
+            Some(auth) => auth.decrypt(data)?,
+            None => data.to_vec(),
+        };
+        match String::from_utf8(data) {
+            Ok(text) => Ok(text),
+            Err(_) => return Err(Error::Protocol("invalid text, not uft-8 string".into())),
+        }
     }
 }
 
@@ -176,6 +279,8 @@ pub struct Connection {
 
     /// The read buffer
     buffer: BytesMut,
+
+    auth: Option<Auth>,
 }
 
 impl Connection {
@@ -190,7 +295,13 @@ impl Connection {
         Connection {
             stream: BufWriter::new(socket),
             buffer: BytesMut::with_capacity(Self::BUFFER_SIZE),
+            auth: None,
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_auth(&mut self, auth: Auth) {
+        self.auth = Some(auth);
     }
 
     /// Read a single `Frame` value from the underlying stream.
@@ -206,9 +317,20 @@ impl Connection {
     /// `None`. Otherwise, an error is returned.
     pub async fn read_frame(&mut self) -> Result<Option<Frame>> {
         loop {
+            let mut parser = FrameParser::new(&self.buffer);
+            if let Some(auth) = &self.auth {
+                parser.with_auth(auth);
+            }
             // Attempt to parse a frame from the buffered data. If enough data
             // has been buffered, the frame is returned.
-            if let Some(frame) = self.parse_frame().context("Parse frame")? {
+            if let Some((frame, len)) = parser.parse().context("Parse frame")? {
+                // Discard the parsed data from the read buffer.
+                //
+                // When `advance` is called on the read buffer, all of the data
+                // up to `len` is discarded. The details of how this works is
+                // left to `BytesMut`. This is often done by moving an internal
+                // cursor, but it may be done by reallocating and copying data.
+                self.buffer.advance(len);
                 return Ok(Some(frame));
             }
 
@@ -229,62 +351,11 @@ impl Connection {
             }
         }
     }
-
-    fn parse_frame(&mut self) -> Result<Option<Frame>, Error> {
-        let mut buf = Cursor::new(&self.buffer[..]);
-
-        // The first step is to check if enough data has been buffered to parse
-        // a single frame. This step is usually much faster than doing a full
-        // parse of the frame, and allows us to skip allocating data structures
-        // to hold the frame data unless we know the full frame has been
-        // received.
-        match Frame::check(&mut buf) {
-            Ok(_) => {
-                // The `check` function will have advanced the cursor until the
-                // end of the frame. Since the cursor had position set to zero
-                // before `Frame::check` was called, we obtain the length of the
-                // frame by checking the cursor position.
-                let len = buf.position() as usize;
-
-                // Reset the position to zero before passing the cursor to
-                // `Frame::parse`.
-                buf.set_position(0);
-
-                // Parse the frame from the buffer. This allocates the necessary
-                // structures to represent the frame and returns the frame
-                // value.
-                //
-                // If the encoded frame representation is invalid, an error is
-                // returned. This should terminate the **current** connection
-                // but should not impact any other connected client.
-                let frame = Frame::parse(&mut buf)?;
-
-                // Discard the parsed data from the read buffer.
-                //
-                // When `advance` is called on the read buffer, all of the data
-                // up to `len` is discarded. The details of how this works is
-                // left to `BytesMut`. This is often done by moving an internal
-                // cursor, but it may be done by reallocating and copying data.
-                self.buffer.advance(len);
-
-                Ok(Some(frame))
-            }
-            // There is not enough data present in the read buffer to parse a
-            // single frame. We must wait for more data to be received from the
-            // socket. Reading from the socket will be done in the statement
-            // after this `match`.
-            //
-            // We do not want to return `Err` from here as this "error" is an
-            // expected runtime condition.
-            Err(Error::Incomplete) => Ok(None),
-
-            Err(err) => Err(err),
-        }
-    }
 }
 
 pub struct Client {
     stream: BufWriter<TcpStream>,
+    auth: Option<Auth>,
 }
 
 impl Client {
@@ -301,7 +372,13 @@ impl Client {
             .with_context(|| format!(r#"Connect to "{}""#, addr))?;
         Ok(Client {
             stream: BufWriter::new(stream),
+            auth: None,
         })
+    }
+
+    #[allow(dead_code)]
+    pub fn with_auth(&mut self, auth: Auth) {
+        self.auth = Some(auth);
     }
 
     #[allow(dead_code)]
@@ -327,17 +404,17 @@ impl Client {
     pub async fn write_frame(&mut self, frame: &Frame) -> Result<()> {
         match frame {
             Frame::Text(text) => {
-                self.stream.write_u8(Frame::PROTOCOL_TEXT).await?;
+                self.stream.write_u8(FrameParser::PROTOCOL_TEXT).await?;
                 self.write_data(text.as_bytes()).await?;
             }
             Frame::Image(width, height, data) => {
-                self.stream.write_u8(Frame::PROTOCOL_IMAGE).await?;
+                self.stream.write_u8(FrameParser::PROTOCOL_IMAGE).await?;
                 self.write_decimal(*width).await?;
                 self.write_decimal(*height).await?;
                 self.write_data(&data).await?;
             }
             Frame::File(name, mode, data) => {
-                self.stream.write_u8(Frame::PROTOCOL_FILE).await?;
+                self.stream.write_u8(FrameParser::PROTOCOL_FILE).await?;
                 self.write_line(&name).await?;
                 self.write_decimal(*mode as u64).await?;
                 self.write_data(&data).await?;
@@ -351,14 +428,26 @@ impl Client {
     }
 
     async fn write_line(&mut self, line: &String) -> Result<()> {
-        self.stream.write_all(line.as_bytes()).await?;
+        let data = line.as_bytes();
+        if let Some(auth) = &self.auth {
+            let cipher_data = auth.encrypt(data)?;
+            self.stream.write_all(&cipher_data).await?;
+        } else {
+            self.stream.write_all(data).await?;
+        }
         self.stream.write_all(b"\r\n").await?;
         Ok(())
     }
 
     async fn write_data(&mut self, data: &[u8]) -> Result<()> {
-        self.write_decimal(data.len() as u64).await?;
-        self.stream.write_all(data).await?;
+        if let Some(auth) = &self.auth {
+            let cipher_data = auth.encrypt(data)?;
+            self.write_decimal(cipher_data.len() as u64).await?;
+            self.stream.write_all(&cipher_data).await?;
+        } else {
+            self.write_decimal(data.len() as u64).await?;
+            self.stream.write_all(data).await?;
+        }
         self.stream.write_all(b"\r\n").await?;
         Ok(())
     }

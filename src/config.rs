@@ -22,6 +22,9 @@ pub struct Arg {
     #[arg(short, long, default_value = "")]
     pub target: String,
 
+    #[arg(short, long, default_value = "")]
+    pub password: Option<String>,
+
     /// Interval (ms) to listen clipboard, must be in the range [50, 3000].
     #[arg(short, long, default_value = "300")]
     pub interval: u64,
@@ -57,6 +60,8 @@ pub struct Config {
 
     pub conn_max: u32,
     pub conn_live: u32,
+
+    pub auth_key: Option<Vec<u8>>,
 }
 
 impl Arg {
@@ -132,6 +137,16 @@ impl Arg {
             );
         }
 
+        let mut auth_key = None;
+        if let Some(pwd) = &self.password {
+            if pwd.len() >= 100 {
+                bail!("Invalid password, should be shorter than 100");
+            }
+            let key = sha256::digest(pwd.clone());
+            let key = &key.as_bytes()[..32];
+            auth_key = Some(key.to_vec());
+        }
+
         Ok(Config {
             bind,
             targets,
@@ -139,6 +154,7 @@ impl Arg {
             dir,
             conn_max: self.conn_max,
             conn_live: self.conn_live,
+            auth_key,
         })
     }
 }

@@ -30,6 +30,10 @@ async fn run() -> Result<()> {
 
     let (mut syncer, sender) = Synchronizer::new(&cfg).await?;
     let mut server = Server::new(&cfg.bind, sender, cfg.conn_max as usize).await?;
+    if let Some(auth_key) = &cfg.auth_key {
+        server.with_auth(auth_key.clone());
+        syncer.with_auth(auth_key.clone());
+    }
 
     tokio::spawn(async move { syncer.run(&cfg).await });
 

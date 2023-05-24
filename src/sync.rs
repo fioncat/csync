@@ -15,7 +15,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{self, Duration, Instant, Interval};
 
 use crate::config::Config;
-use crate::net::{Client, Frame};
+use crate::net::{Auth, Client, Frame};
 
 /// Such error returns from `arboard` should be ignored.
 const INCORRECT_CLIPBOARD_TYPE_ERROR: &str = "incorrect type received from clipboard";
@@ -49,6 +49,8 @@ pub struct Synchronizer {
     expire_intv: Interval,
     /// The client expiration time.
     expire_duration: Duration,
+
+    auth_key: Option<Vec<u8>>,
 }
 
 impl Synchronizer {
@@ -102,9 +104,15 @@ impl Synchronizer {
             clipboard_intv,
             expire_intv,
             expire_duration,
+
+            auth_key: None,
         };
 
         Ok((syncer, sender))
+    }
+
+    pub fn with_auth(&mut self, auth_key: Vec<u8>) {
+        self.auth_key = Some(auth_key);
     }
 
     /// Start the clipboard synchronization process. This should run in a
@@ -156,7 +164,12 @@ impl Synchronizer {
 
         // No available connection, create a new one.
         debug!("Create connection to {target}");
-        Client::dial(target).await
+        let mut client = Client::dial(target).await?;
+        if let Some(auth_key) = &self.auth_key {
+            client.with_auth(Auth::new(auth_key));
+        }
+
+        Ok(client)
     }
 
     fn save_conn(&mut self, target: &SocketAddr, conn: Client) {
