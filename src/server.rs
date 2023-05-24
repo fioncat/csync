@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc::Sender, Semaphore};
 use tokio::time::{self, Duration};
 
-use crate::net::{Connection, Frame};
+use crate::net::{Auth, Connection, Frame};
 
 use log::{error, info};
 
@@ -32,6 +32,9 @@ pub struct Server {
 
     /// The server bind address.
     bind: SocketAddr,
+
+    /// The auth key.
+    auth_key: Option<Vec<u8>>,
 }
 
 impl Server {
@@ -49,7 +52,12 @@ impl Server {
             conn_limit,
             sender,
             bind: bind.clone(),
+            auth_key: None,
         })
+    }
+
+    pub fn with_auth(&mut self, auth_key: Vec<u8>) {
+        self.auth_key = Some(auth_key);
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -73,9 +81,14 @@ impl Server {
             // The `mpsc` channel sender can be cloned for each task.
             let sender = self.sender.clone();
 
+            let mut conn = Connection::new(socket);
+            if let Some(auth_key) = &self.auth_key {
+                conn.with_auth(Auth::new(auth_key));
+            }
+
             tokio::spawn(async move {
                 debug!("Accpect connection from {addr}");
-                if let Err(err) = Self::handle(sender, socket, addr).await {
+                if let Err(err) = Self::handle(sender, conn, addr).await {
                     error!("Handle socket error: {err:#}");
                 }
                 // Move the permit into the task and drop it after completion.
@@ -104,8 +117,7 @@ impl Server {
         }
     }
 
-    async fn handle(sender: Sender<Frame>, socket: TcpStream, addr: SocketAddr) -> Result<()> {
-        let mut conn = Connection::new(socket);
+    async fn handle(sender: Sender<Frame>, mut conn: Connection, addr: SocketAddr) -> Result<()> {
         loop {
             let frame = conn.read_frame().await?;
 

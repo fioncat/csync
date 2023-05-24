@@ -9,7 +9,7 @@ use std::process::ExitCode;
 use anyhow::Result;
 use clap::Parser;
 use config::Arg;
-use log::info;
+use log::debug;
 
 use crate::server::Server;
 use crate::sync::Synchronizer;
@@ -26,10 +26,14 @@ async fn run() -> Result<()> {
 
     let mut arg = Arg::parse();
     let cfg = arg.normalize()?;
-    info!("Use config: {:?}", cfg);
+    debug!("Use config: {:?}", cfg);
 
     let (mut syncer, sender) = Synchronizer::new(&cfg).await?;
     let mut server = Server::new(&cfg.bind, sender, cfg.conn_max as usize).await?;
+    if let Some(auth_key) = &cfg.auth_key {
+        server.with_auth(auth_key.clone());
+        syncer.with_auth(auth_key.clone());
+    }
 
     tokio::spawn(async move { syncer.run(&cfg).await });
 
