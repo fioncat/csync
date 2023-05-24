@@ -80,7 +80,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          7z a ../../../csync_${{ matrix.name }}.zip csync.exe
+          7z a ../../../csync_${{ matrix.target }}.zip csync.exe
           cd -
 
       - name: Create release

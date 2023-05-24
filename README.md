@@ -1,7 +1,5 @@
 # csync
 
-**csync now does not support Windows system**
-
 csync is a simple tool for synchronizing the clipboards of multiple machines.
 
 ## Install
