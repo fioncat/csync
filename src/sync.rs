@@ -17,37 +17,71 @@ use tokio::time::{self, Duration, Instant, Interval};
 use crate::config::Config;
 use crate::net::{Client, Frame};
 
+/// Such error returns from `arboard` should be ignored.
 const INCORRECT_CLIPBOARD_TYPE_ERROR: &str = "incorrect type received from clipboard";
 
+/// A synchronizer does two things:
+///
+/// 1. Watch the data change of the system clipboard, if there is a change, send
+/// the synchronization request and data to targets.
+/// 2. Receive the synchronization request sent from the server and write it to the
+/// system clipboard.
 pub struct Synchronizer {
+    /// Client connection pool. Clients in the connection pool will be reused.
+    /// But if the client is not used for a period of time, it will be recycled.
     conn_pool: HashMap<String, Client>,
+    /// Record the time when the corresponding client will be recycled.
     conn_expire: HashMap<String, Instant>,
 
+    /// The hash value of the data in the current clipboard.
     current_hash: Option<String>,
 
+    /// The `arboard` clipboard driver.
     clipboard: Clipboard,
 
+    /// Used to receive external synchronization requests from the server. Recv
+    /// Data will be written to the system clipboard using `arboard`.
     receiver: Receiver<Frame>,
 
+    /// The interval to watch the clipboard changes.
     clipboard_intv: Interval,
+    /// The interval to watch the client expirations.
     expire_intv: Interval,
+    /// The client expiration time.
     expire_duration: Duration,
 }
 
 impl Synchronizer {
+    /// Create a synchronizer, you should call `run` to enable it.
+    /// The sender returned by this method can be used to send synchronization
+    /// request to the synchronizer.
     pub async fn new(cfg: &Config) -> Result<(Synchronizer, Sender<Frame>)> {
         let conn_pool = HashMap::with_capacity(cfg.targets.len());
         let conn_expire = HashMap::with_capacity(cfg.targets.len());
 
+        // Initialize the `arboard` clipboard driver. This library does not provide
+        // a universal read method, so some inelegant encapsulation is required.
+        // But there are no other clipboard drivers that are maintained and
+        // available in the Rust community.
+        // We can wait issue: https://github.com/1Password/arboard/issues/11
         let mut clipboard = Clipboard::new().context("Init clipboard driver")?;
+
+        // Use `mpsc` so that we can have multi senders hold by different
+        // tokio tasks.
+        // For server situation, each connection should have one sender.
         let (sender, receiver) = mpsc::channel::<Frame>(cfg.conn_max as usize);
 
+        // Read the data of the current clipboard as the initial value. This causes
+        // that the initial sync request is not sent immediately after csync
+        // starts. This is to prevent a flood of sync requests when csync keeps
+        // restarting.
         let current = ClipboardData::read(&mut clipboard).context("Read clipboard")?;
         let current_hash = match current {
             Some(data) => Some(data.get_hash()),
             None => None,
         };
 
+        // Init some time values.
         let start = Instant::now();
         let clipboard_duration = Duration::from_millis(cfg.interval);
         let expire_duration = Duration::from_secs(cfg.conn_live as u64);
@@ -73,6 +107,8 @@ impl Synchronizer {
         Ok((syncer, sender))
     }
 
+    /// Start the clipboard synchronization process. This should run in a
+    /// standalone tokio task.
     pub async fn run(&mut self, cfg: &Config) {
         use tokio::select;
 
@@ -80,20 +116,26 @@ impl Synchronizer {
         loop {
             select! {
                 _ = self.clipboard_intv.tick() => {
+                    // Read the data of the clipboard, if there is a change, send
+                    // a synchronization request to targets.
                     if let Err(err) = self.send_clipboard_data(&cfg.targets).await {
                         error!("Send clipboard error: {err:#}");
                     }
                 }
                 _ = self.expire_intv.tick() => {
+                    // Periodically close those expired connections, this is
+                    // controlled by the `Config.conn_live`.
                     self.flush_conn();
                 }
                 frame = self.receiver.recv() => {
                     if let Some(frame) = frame {
                         if let Frame::File(name, mode, data) = &frame {
+                            // Handle the file synchronization request.
                             if let Err(err) = self.recv_file(&cfg.dir, name, *mode, data).await {
                                 error!("Recv data error: {err:#}");
                             }
                         }
+                        // Handle the clipboard synchronization request.
                         if let Err(err) = self.recv_clipboard(frame) {
                             error!("Recv clipboard error: {err:#}");
                         }
@@ -106,9 +148,13 @@ impl Synchronizer {
     async fn get_conn(&mut self, target: &SocketAddr) -> Result<Client> {
         let addr = target.to_string();
         if let Some(conn) = self.conn_pool.remove(&addr) {
+            // If there is an available connection in the connection pool, take it
+            // out of the pool directly, and put it back into the connection pool
+            // after use.
             return Ok(conn);
         }
 
+        // No available connection, create a new one.
         debug!("Create connection to {target}");
         Client::dial(target).await
     }
@@ -116,6 +162,7 @@ impl Synchronizer {
     fn save_conn(&mut self, target: &SocketAddr, conn: Client) {
         let addr = target.to_string();
         self.conn_pool.insert(addr.clone(), conn);
+        // The expiration time is: now + conn_live
         let expire = Instant::now().checked_add(self.expire_duration).unwrap();
         self.conn_expire.insert(addr, expire);
     }
@@ -125,7 +172,7 @@ impl Synchronizer {
         let mut clean = Vec::new();
         for (addr, expire) in &self.conn_expire {
             if now >= *expire {
-                debug!("Drop expired connection {addr}");
+                debug!("Drop expired client {addr}");
                 self.conn_pool.remove(addr);
                 clean.push(addr.clone());
             }
@@ -136,19 +183,25 @@ impl Synchronizer {
     }
 
     async fn send_clipboard_data(&mut self, targets: &[SocketAddr]) -> Result<()> {
+        // `data` may be an image or text, but we don't care in this method,
+        // all conversions have been done in ClipboardData.
         let data = match ClipboardData::read(&mut self.clipboard)? {
             Some(data) => data,
+            // No data in clipboard, skip this loop.
             None => return Ok(()),
         };
         let hash = data.get_hash();
         if let Some(current_hash) = &self.current_hash {
             if current_hash.eq(&hash) {
+                // If the hash value has not changed, it means that the content
+                // in the clipboard has not changed, and we skip this loop directly.
                 return Ok(());
             }
         }
         self.current_hash = Some(hash);
         debug!("Clipboard changed: {data}");
 
+        // TODO: Asynchronously send synchronous requests for each target
         let frame = data.to_frame();
         for target in targets {
             debug!("Send {frame} to {target}");

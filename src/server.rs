@@ -11,12 +11,26 @@ use crate::net::{Connection, Frame};
 
 use log::{error, info};
 
+/// The main csync server. It includes a `run` method which performs the TCP
+/// listening and initialization of per-connection state.
 pub struct Server {
+    /// TCP listener supplied by the `run` caller.
     listener: TcpListener,
+
+    /// Limit the max number of connections.
+    ///
+    /// A `Semaphore` is used to limit the max number of connections. Before
+    /// attempting to accept a new connection, a permit is acquired from the
+    /// semaphore. If none are available, the listener waits for one.
+    ///
+    /// When handlers complete processing a connection, the permit is returned
+    /// to the semaphore.
     conn_limit: Arc<Semaphore>,
 
+    /// Use to send synchronization requests to clipboard synchronizer.
     sender: Sender<Frame>,
 
+    /// The server bind address.
     bind: SocketAddr,
 }
 
@@ -51,8 +65,12 @@ impl Server {
             // closed. We don't ever close the semaphore, so `unwrap()` is safe.
             let permit = self.conn_limit.clone().acquire_owned().await.unwrap();
 
+            // Accept a new socket. This will attempt to perform error handling.
+            // The `accept` method internally attempts to recover errors, so an
+            // error here is non-recoverable.
             let (socket, addr) = self.accept().await?;
 
+            // The `mpsc` channel sender can be cloned for each task.
             let sender = self.sender.clone();
 
             tokio::spawn(async move {
