@@ -168,6 +168,7 @@ impl Synchronizer {
                 return Ok(());
             }
         }
+        self.current_hash = Some(hash);
         debug!("Write {data} to clipboard");
         data.save(&mut self.clipboard).context("Save clipboard")?;
         Ok(())
