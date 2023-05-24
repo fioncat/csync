@@ -22,6 +22,9 @@ pub struct Arg {
     #[arg(short, long, default_value = "")]
     pub target: String,
 
+    /// If not empty, the clipboard data will be encrypted using the AES256-GCM
+    /// algorithm. If your clipboard data is sensitive, it is recommended to set
+    /// a password and replace it regularly.
     #[arg(short, long, default_value = "")]
     pub password: Option<String>,
 

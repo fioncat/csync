@@ -28,7 +28,10 @@ pub struct Auth {
     cipher: Aes256Gcm,
 }
 
+/// Auth uses the AES256-GCM algorithm to encrypt and decrypt data.
 impl Auth {
+    /// Create a new Auth object with the given key, note that the length of
+    /// `auth_key` must be 32, otherwise the function will panic.
     pub fn new(auth_key: &[u8]) -> Auth {
         let key = Key::<Aes256Gcm>::from_slice(auth_key);
         let cipher = Aes256Gcm::new(key);
@@ -47,9 +50,12 @@ impl Auth {
     }
 
     fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
+        // The header must be a random nonce of length 12. If the length is
+        // shorter than 12, the data is not encrypted.
         if data.len() <= 12 {
             return Err(Error::Auth);
         }
+
         let nonce = &data[..12];
         let cipher_data = &data[12..];
 
