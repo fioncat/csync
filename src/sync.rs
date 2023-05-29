@@ -119,6 +119,10 @@ impl Synchronizer {
     /// Start the clipboard synchronization process. This should run in a
     /// standalone tokio task.
     pub async fn run(&mut self, cfg: &Config) {
+        if cfg.targets.is_empty() {
+            return self.readonly_run(cfg).await;
+        }
+
         use tokio::select;
 
         info!("Start to sync clipboard");
@@ -134,22 +138,34 @@ impl Synchronizer {
                 _ = self.expire_intv.tick() => {
                     // Periodically close those expired connections, this is
                     // controlled by the `Config.conn_live`.
-                    self.flush_conn();
+                    self.clean_conn();
                 }
                 frame = self.receiver.recv() => {
-                    if let Some(frame) = frame {
-                        if let Frame::File(name, mode, data) = &frame {
-                            // Handle the file synchronization request.
-                            if let Err(err) = self.recv_file(&cfg.dir, name, *mode, data).await {
-                                error!("Recv data error: {err:#}");
-                            }
-                        }
-                        // Handle the clipboard synchronization request.
-                        if let Err(err) = self.recv_clipboard(frame) {
-                            error!("Recv clipboard error: {err:#}");
-                        }
-                    }
+                    self.recv_frame(frame, cfg).await;
                 }
+            }
+        }
+    }
+
+    async fn readonly_run(&mut self, cfg: &Config) {
+        info!("Start to sync clipboard (readonly)");
+        loop {
+            let frame = self.receiver.recv().await;
+            self.recv_frame(frame, cfg).await;
+        }
+    }
+
+    async fn recv_frame(&mut self, frame: Option<Frame>, cfg: &Config) {
+        if let Some(frame) = frame {
+            if let Frame::File(name, mode, data) = &frame {
+                // Handle the file synchronization request.
+                if let Err(err) = self.recv_file(&cfg.dir, name, *mode, data).await {
+                    error!("Recv data error: {err:#}");
+                }
+            }
+            // Handle the clipboard synchronization request.
+            if let Err(err) = self.recv_clipboard(frame) {
+                error!("Recv clipboard error: {err:#}");
             }
         }
     }
@@ -181,7 +197,7 @@ impl Synchronizer {
         self.conn_expire.insert(addr, expire);
     }
 
-    fn flush_conn(&mut self) {
+    fn clean_conn(&mut self) {
         let now = Instant::now();
         let mut clean = Vec::new();
         for (addr, expire) in &self.conn_expire {

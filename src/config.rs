@@ -88,12 +88,12 @@ impl Arg {
         if let Some(s) = env::var_os("CSYNC_CONFIG_TARGET") {
             self.target = parse_osstr(s)?;
         }
-        if self.target.is_empty() {
-            bail!("Invalid usage, the target could not be empty, please use `--target` or env `CSYNC_CONFIG_TARGET`");
-        }
         let endpoints: Vec<_> = self.target.split(",").collect();
         let mut targets: Vec<SocketAddr> = Vec::with_capacity(endpoints.len());
         for ep in endpoints {
+            if ep.is_empty() {
+                continue;
+            }
             let addr: SocketAddr = ep
                 .parse()
                 .with_context(|| format!(r#"Could not parse target address "{}""#, ep))?;
