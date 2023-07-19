@@ -162,6 +162,7 @@ impl Synchronizer {
                 if let Err(err) = self.recv_file(&cfg.dir, name, *mode, data).await {
                     error!("Recv data error: {err:#}");
                 }
+                return;
             }
             // Handle the clipboard synchronization request.
             if let Err(err) = self.recv_clipboard(frame) {
