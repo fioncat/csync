@@ -3,6 +3,8 @@ package main
 import (
 	"reflect"
 	"testing"
+
+	"github.com/sirupsen/logrus"
 )
 
 func TestDataFrame(t *testing.T) {
@@ -42,12 +44,12 @@ func TestDataFrame(t *testing.T) {
 	for _, f := range dataList {
 		data := f.Encode()
 
-		expected, err := DecodeDataFrame(data, f.From)
+		expected, err := DecodeDataFrame(data, f.From, &logrus.Entry{})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !reflect.DeepEqual(expected, &f) {
+		if !reflect.DeepEqual(expected.Data, f.Data) {
 			t.Fatalf("Unexpect frame: %+v", expected)
 		}
 

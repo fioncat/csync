@@ -124,7 +124,7 @@ func configPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Get home dir: %w", err)
 	}
-	dir = path.Join(dir, "config", "csync")
+	dir = path.Join(dir, ".config", "csync")
 	meta, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -168,9 +168,15 @@ func setDefault(v any) {
 		field := value.Field(i)
 		switch field.Kind() {
 		case reflect.String:
+			if field.String() != "" {
+				continue
+			}
 			field.SetString(defaultValue)
 
 		case reflect.Int:
+			if field.Int() > 0 {
+				continue
+			}
 			intValue, err := strconv.ParseInt(defaultValue, 10, 64)
 			if err != nil {
 				panic(err)
