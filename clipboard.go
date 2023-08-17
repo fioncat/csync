@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"time"
@@ -31,6 +32,49 @@ func NewClipboard() (*Clipboard, error) {
 	return &Clipboard{reids: redis}, nil
 }
 
+func (c *Clipboard) Run() {
+	if len(GetConfig().Watch) == 0 {
+		c.runNoSend()
+		return
+	}
+
+	subChan := c.reids.Sub()
+
+	ctx := context.Background()
+	textChan := clipboard.Watch(ctx, clipboard.FmtText)
+	imageChan := clipboard.Watch(ctx, clipboard.FmtImage)
+
+	logrus.Info("Start to listen and receive clipboard")
+	for {
+		select {
+		case frame := <-subChan:
+			c.recv(frame)
+
+		case textData := <-textChan:
+			c.send(DataFrameText, textData)
+
+		case imageData := <-imageChan:
+			c.send(DataFrameImage, imageData)
+		}
+	}
+}
+
+func (c *Clipboard) runNoSend() {
+	ctx := context.Background()
+	textChan := clipboard.Watch(ctx, clipboard.FmtText)
+	imageChan := clipboard.Watch(ctx, clipboard.FmtImage)
+	logrus.Info("Start to listen clipboard")
+	for {
+		select {
+		case textData := <-textChan:
+			c.send(DataFrameText, textData)
+
+		case imageData := <-imageChan:
+			c.send(DataFrameImage, imageData)
+		}
+	}
+}
+
 func (c *Clipboard) recv(frame *DataFrame) {
 	start := time.Now()
 	hashArray := sha256.Sum256(frame.Data)
@@ -41,7 +85,16 @@ func (c *Clipboard) recv(frame *DataFrame) {
 	}
 	c.hash = hash
 
-	frame.LogEntry.Infof("")
+	frame.LogEntry.Infof("Recv calculate sha256 for data done, took %v", time.Since(start))
+
+	start = time.Now()
+	switch frame.Type {
+	case DataFrameText:
+		clipboard.Write(clipboard.FmtText, frame.Data)
+	case DataFrameImage:
+		clipboard.Write(clipboard.FmtImage, frame.Data)
+	}
+	frame.LogEntry.Infof("Write data frame to clipboard done, took %v", time.Since(start))
 }
 
 func (c *Clipboard) send(dataType DataFrameType, data []byte) {
