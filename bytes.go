@@ -31,22 +31,6 @@ type DataFrame struct {
 	LogEntry *logrus.Entry
 }
 
-func NewDataFrameText(text string) *DataFrame {
-	return &DataFrame{
-		Type:     DataFrameText,
-		Data:     []byte(text),
-		LogEntry: logrus.NewEntry(logrus.New()),
-	}
-}
-
-func NewDataFrameImage(data []byte) *DataFrame {
-	return &DataFrame{
-		Type:     DataFrameImage,
-		Data:     data,
-		LogEntry: logrus.NewEntry(logrus.New()),
-	}
-}
-
 func (f *DataFrame) Encode() []byte {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(f.Type))

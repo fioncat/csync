@@ -87,7 +87,7 @@ func (r *Redis) sub(ch chan *DataFrame) {
 	for msg := range sub.Channel() {
 		channel := msg.Channel
 		name := path.Base(channel)
-		entry := logrus.New().WithField("From", name)
+		entry := logrus.StandardLogger().WithField("From", name)
 
 		start := time.Now()
 		data, err := r.formatter.Decode(msg.Payload)
