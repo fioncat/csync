@@ -17,6 +17,11 @@ else
 	BUILD_VERSION="${GIT_TAG}-dev_${GIT_COMMIT_SHORT}"
 fi
 
+if [[ -z "$BUILD_VERSION" ]]; then
+	BUILD_TYPE="dev"
+	BUILD_VERSION="dev_${GIT_COMMIT_SHORT}"
+fi
+
 if git status --porcelain | grep -E '(M|A|D|R|\?)' > /dev/null; then
 	BUILD_TYPE="dev-uncommitted"
 	BUILD_VERSION="${BUILD_VERSION}-uncommitted"
