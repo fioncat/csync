@@ -1,0 +1,48 @@
+name: release
+
+on:
+  push:
+    branches:
+      - "main"
+
+env:
+  CARGO_INCREMENTAL: 0
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-11
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.21.0
+
+      - name: Build linux-amd64
+        if: matrix.os == 'ubuntu-latest'
+        run: ./build.sh "linux" "amd64" "bin/linux-amd64/csync"
+
+      - name: Build windows-amd64
+        if: matrix.os == 'ubuntu-latest'
+        run: ./build.sh "windows" "amd64" "bin/windows-amd64/csync.exe"
+
+      - name: Build darwin-amd64
+        if: matrix.os == 'macos-11'
+        run: ./build.sh "darwin" "amd64" "bin/darwin-amd64/csync"
+
+      - name: Build darwin-arm64
+        if: matrix.os == 'macos-11'
+        run: ./build.sh "darwin" "arm64" "bin/darwin-arm64/csync"
