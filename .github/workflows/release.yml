@@ -2,8 +2,8 @@ name: release
 
 on:
   push:
-    branches:
-      - "main"
+    tags:
+      - '*'
 
 permissions:
   contents: write
@@ -59,7 +59,7 @@ jobs:
         run: >
           tar -cv
           LICENSE README.md
-          -C bin/windows-amd64/ csync
+          -C bin/windows-amd64/ csync.exe
           | gzip --best
           > 'csync_windows-amd64.tar.gz'
 
@@ -80,3 +80,10 @@ jobs:
           -C bin/darwin-arm64/ csync
           | gzip --best
           > 'csync_darwin-arm64.tar.gz'
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            *.tar.gz
