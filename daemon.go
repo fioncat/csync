@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,7 +21,7 @@ type Daemon struct {
 }
 
 func NewDaemon() (*Daemon, error) {
-	localDir, err := getDaemonDir()
+	localDir, err := GetMetaDir()
 	if err != nil {
 		return nil, fmt.Errorf("Get daemon dir error: %w", err)
 	}
@@ -39,35 +38,6 @@ func NewDaemon() (*Daemon, error) {
 		pidPath: pidPath,
 		logPath: logPath,
 	}, nil
-}
-
-func getDaemonDir() (string, error) {
-	dir := os.Getenv("CSYNC_LOCAL")
-	if dir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("Get user home dir: %w", err)
-		}
-		dir = path.Join(homeDir, ".local", "share", "csync")
-	}
-
-	stat, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(dir, os.ModePerm)
-			if err != nil {
-				return "", fmt.Errorf("Mkdir for csync local: %w", err)
-			}
-			return dir, nil
-		}
-		return "", fmt.Errorf("Stat csync local error: %w", err)
-	}
-
-	if !stat.IsDir() {
-		return "", fmt.Errorf("Local %s is not a directory", dir)
-	}
-
-	return dir, nil
 }
 
 func getDaemonPid(path string) (int, error) {
