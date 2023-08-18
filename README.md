@@ -4,10 +4,11 @@ csync is a simple tool for synchronizing the clipboards of multiple machines.
 
 ## Install
 
-For Linux, the X11 library is needed, you can install it like this:
+For Unix system, use command to install:
 
 ```bash
-sudo apt-get install xorg-dev
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/fioncat/csync/HEAD/install.sh)"
 ```
 
 You can download csync binary from [release page](https://github.com/fioncat/csync/releases).
+
