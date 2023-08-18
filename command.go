@@ -83,6 +83,63 @@ var LogsCommand = &cobra.Command{
 	},
 }
 
+var (
+	sendFilename string
+	sendImage    string
+)
+
+var SendCommand = &cobra.Command{
+	Use:   "send [-f filename] [-i image] [message]",
+	Short: "Send message or image to remote",
+
+	Args: cobra.MaximumNArgs(1),
+
+	RunE: func(_ *cobra.Command, args []string) error {
+		redis, err := NewRedis()
+		if err != nil {
+			return err
+		}
+
+		if sendImage != "" {
+			data, err := os.ReadFile(sendImage)
+			if err != nil {
+				return fmt.Errorf("Read image: %w", err)
+			}
+
+			frame := NewDataFrame(DataFrameImage, data)
+			err = redis.Send(frame)
+			if err != nil {
+				return fmt.Errorf("Send image to redis: %w", err)
+			}
+		}
+
+		var sendText []byte
+		if len(args) == 1 {
+			sendText = []byte(args[0])
+		}
+		if sendFilename != "" {
+			sendText, err = os.ReadFile(sendFilename)
+			if err != nil {
+				return fmt.Errorf("Read text: %w", err)
+			}
+		}
+		if len(sendText) > 0 {
+			frame := NewDataFrame(DataFrameText, sendText)
+			err = redis.Send(frame)
+			if err != nil {
+				return fmt.Errorf("Send text to redis: %w", err)
+			}
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	SendCommand.PersistentFlags().StringVarP(&sendFilename, "file", "f", "", "Read text file to send")
+	SendCommand.PersistentFlags().StringVarP(&sendImage, "image", "i", "", "Read image file to send")
+}
+
 func ErrorExit(err error) {
 	fmt.Printf("%s: %v\n", color.RedString("error"), err)
 	os.Exit(1)

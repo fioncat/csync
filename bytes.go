@@ -31,6 +31,18 @@ type DataFrame struct {
 	LogEntry *logrus.Entry
 }
 
+func NewDataFrame(dataType DataFrameType, data []byte) *DataFrame {
+	entry := logrus.StandardLogger().WithFields(logrus.Fields{
+		"DataSize": humanize.Bytes(uint64(len(data))),
+		"Type":     dataType,
+	})
+	return &DataFrame{
+		Type:     dataType,
+		Data:     data,
+		LogEntry: entry,
+	}
+}
+
 func (f *DataFrame) Encode() []byte {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(f.Type))

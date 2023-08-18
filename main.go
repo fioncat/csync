@@ -6,6 +6,13 @@ var Command = &cobra.Command{
 	Use:   "csync",
 	Short: "Start csync",
 
+	SilenceErrors: true,
+	SilenceUsage:  true,
+
+	CompletionOptions: cobra.CompletionOptions{
+		HiddenDefaultCmd: true,
+	},
+
 	Args: cobra.ExactArgs(0),
 
 	RunE: func(_ *cobra.Command, _ []string) error {
@@ -20,6 +27,7 @@ var Command = &cobra.Command{
 
 func main() {
 	Command.AddCommand(StartCommand, StopCommand, StatusCommand, LogsCommand)
+	Command.AddCommand(SendCommand)
 
 	err := Command.Execute()
 	if err != nil {
