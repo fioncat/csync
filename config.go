@@ -15,10 +15,11 @@ import (
 )
 
 type Config struct {
-	Name     string      `yaml:"name"`
-	Password string      `yaml:"password"`
-	Watch    []string    `yaml:"watch"`
-	Redis    RedisConfig `yaml:"redis"`
+	Name      string          `yaml:"name"`
+	Password  string          `yaml:"password"`
+	Watch     []string        `yaml:"watch"`
+	Redis     RedisConfig     `yaml:"redis"`
+	Clipboard ClipboardConfig `yaml:"clipboard"`
 }
 
 type RedisConfig struct {
@@ -31,6 +32,11 @@ type RedisConfig struct {
 	Timeout string `yaml:"timeout" default:"10s"`
 
 	timeout time.Duration
+}
+
+type ClipboardConfig struct {
+	ReadOnly  bool `yaml:"readonly"`
+	WriteOnly bool `yaml:"writeonly"`
 }
 
 func (c *Config) normalize() error {
