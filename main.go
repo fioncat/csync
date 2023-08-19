@@ -75,7 +75,7 @@ var VersionCommand = &cobra.Command{
 
 func main() {
 	Command.AddCommand(StartCommand, StopCommand, StatusCommand, LogsCommand)
-	Command.AddCommand(SendCommand)
+	Command.AddCommand(SendCommand, RecvCommand)
 	Command.AddCommand(VersionCommand)
 
 	err := Command.Execute()

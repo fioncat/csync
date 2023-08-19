@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path"
+	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -135,12 +140,135 @@ var SendCommand = &cobra.Command{
 	},
 }
 
+var (
+	recvFilename string
+	recvAppend   bool
+	recvImage    string
+)
+
+var RecvCommand = &cobra.Command{
+	Use:   "recv [-f filename] [-i image] [-a]",
+	Short: "Receive data and write to file rather than clipboard",
+
+	Args: cobra.ExactArgs(0),
+
+	RunE: func(_ *cobra.Command, _ []string) error {
+		var err error
+		if recvFilename != "" {
+			err = ensureDir(recvFilename)
+			if err != nil {
+				return err
+			}
+		}
+
+		if recvImage != "" {
+			err = ensureDir(recvImage)
+			if err != nil {
+				return err
+			}
+		}
+
+		redis, err := NewRedis()
+		if err != nil {
+			return err
+		}
+
+		for frame := range redis.Sub() {
+			switch frame.Type {
+			case DataFrameImage:
+				if recvImage == "" {
+					frame.LogEntry.Info("Received image")
+					continue
+				}
+
+				start := time.Now()
+				err = os.WriteFile(recvImage, frame.Data, 0644)
+				if err != nil {
+					frame.LogEntry.Errorf("Write image data to file error: %v", err)
+					continue
+				}
+
+				frame.LogEntry.Infof("Write image data to file %s done, took %v", recvImage, time.Since(start))
+
+			case DataFrameText:
+				if recvFilename == "" {
+					text := string(frame.Data)
+					text = strings.ReplaceAll(text, "\n", "\\n")
+					frame.LogEntry.Info(text)
+					continue
+				}
+
+				var flag int
+				if recvAppend {
+					flag = os.O_CREATE | os.O_APPEND | os.O_WRONLY
+				} else {
+					flag = os.O_CREATE | os.O_TRUNC | os.O_WRONLY
+				}
+
+				file, err := os.OpenFile(recvFilename, flag, 0644)
+				if err != nil {
+					frame.LogEntry.Errorf("Open text file error: %v", err)
+					continue
+				}
+
+				data := frame.Data
+				if recvAppend {
+					header := fmt.Sprintf(">>>> From: %s, Time: %s", frame.From,
+						time.Now().Format("2006-01-02 15:04:05"))
+					content := fmt.Sprintf("%s\n%s\n\n", header, string(frame.Data))
+
+					data = []byte(content)
+				}
+
+				buf := bytes.NewBuffer(data)
+				_, err = io.Copy(file, buf)
+				if err != nil {
+					frame.LogEntry.Errorf("Write text to file error: %v", err)
+					continue
+				}
+
+				err = file.Close()
+				if err != nil {
+					frame.LogEntry.Errorf("Close text file error: %v", err)
+					continue
+				}
+
+			}
+		}
+
+		return nil
+	},
+}
+
 func init() {
 	SendCommand.PersistentFlags().StringVarP(&sendFilename, "file", "f", "", "Read text file to send")
 	SendCommand.PersistentFlags().StringVarP(&sendImage, "image", "i", "", "Read image file to send")
+
+	RecvCommand.PersistentFlags().StringVarP(&recvFilename, "file", "f", "", "Write received text to this file")
+	RecvCommand.PersistentFlags().BoolVarP(&recvAppend, "append", "a", false, "Append text file, no overwrite")
+	RecvCommand.PersistentFlags().StringVarP(&recvImage, "image", "i", "", "Write received image to this file")
 }
 
 func ErrorExit(err error) {
 	fmt.Printf("%s: %v\n", color.RedString("error"), err)
 	os.Exit(1)
+}
+
+func ensureDir(filepath string) error {
+	dir := path.Dir(filepath)
+	stat, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(dir, os.ModePerm)
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	}
+	if !stat.IsDir() {
+		return fmt.Errorf("Path %s is not a directory", dir)
+	}
+
+	return nil
 }
