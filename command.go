@@ -256,7 +256,7 @@ var UpdateCommand = &cobra.Command{
 
 		var err error
 		if targetVersion == "" {
-			fmt.Println("Checking new version for csync")
+			ExecInfo("Checking new version for csync")
 			targetVersion, err = GetLatestVersion()
 			if err != nil {
 				return fmt.Errorf("Get latest release from github: %w", err)
@@ -264,7 +264,7 @@ var UpdateCommand = &cobra.Command{
 		}
 
 		if Version == targetVersion {
-			fmt.Println("Your csync is up-to-date")
+			ExecInfo("Your csync is up-to-date")
 			return nil
 		}
 
@@ -278,14 +278,14 @@ var UpdateCommand = &cobra.Command{
 		tmpDir := os.TempDir()
 		tarPath := filepath.Join(tmpDir, "csync-update", "csync.tar.gz")
 		target := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
-		fmt.Printf("Downloading csync(version:%s, target:%s) to %s\n", targetVersion, target, tarPath)
+		ExecInfo("Downloading csync")
 		err = DownloadRelease(targetVersion, target, tarPath)
 		if err != nil {
 			return fmt.Errorf("Download github release: %w", err)
 		}
 
 		binPath := filepath.Join(tmpDir, "csync-update", "bin")
-		fmt.Printf("Untaring csync binary to %s\n", binPath)
+		ExecInfo("Untaring tar.gz")
 		err = UnTarTo(tarPath, binPath)
 		if err != nil {
 			return fmt.Errorf("Untar tar.gz file: %w", err)
@@ -297,28 +297,20 @@ var UpdateCommand = &cobra.Command{
 			return fmt.Errorf("Get current executable file: %w", err)
 		}
 
-		fmt.Printf("Replacing binary %s\n", currentBinPath)
-
-		// FIXME: Support windows
-		var buf bytes.Buffer
-		cmd := exec.Command("mv", binPath, currentBinPath)
-		cmd.Stdout = &buf
-		cmd.Stderr = &buf
-		err = cmd.Run()
+		ExecInfo("Replacing binary")
+		err = ReplaceBinary(currentBinPath, binPath)
 		if err != nil {
-			return fmt.Errorf("Move binary file error: %s", buf.String())
-		}
-
-		fmt.Printf("Update csync to %s done\n", targetVersion)
-
-		toRemoveDir := filepath.Join(tmpDir, "csync-update")
-		err = os.RemoveAll(toRemoveDir)
-		if err != nil {
-			return fmt.Errorf("Remove update tmp dir: %w", err)
+			return fmt.Errorf("Replace binary: %w", err)
 		}
 
 		return nil
 	},
+}
+
+func ExecInfo(msg string, args ...any) {
+	msg = fmt.Sprintf(msg, args...)
+	attr := color.New(color.FgCyan, color.Bold)
+	fmt.Printf("%s %s\n", attr.Sprint("==>"), msg)
 }
 
 func init() {
