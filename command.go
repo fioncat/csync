@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -234,6 +236,85 @@ var RecvCommand = &cobra.Command{
 				}
 
 			}
+		}
+
+		return nil
+	},
+}
+
+var UpdateCommand = &cobra.Command{
+	Use:   "update [version]",
+	Short: "Execute self-update",
+
+	Args: cobra.MaximumNArgs(1),
+
+	RunE: func(_ *cobra.Command, args []string) error {
+		targetVersion := ""
+		if len(args) >= 1 {
+			targetVersion = args[0]
+		}
+
+		var err error
+		if targetVersion == "" {
+			fmt.Println("Checking new version for csync")
+			targetVersion, err = GetLatestVersion()
+			if err != nil {
+				return fmt.Errorf("Get latest release from github: %w", err)
+			}
+		}
+
+		if Version == targetVersion {
+			fmt.Println("Your csync is up-to-date")
+			return nil
+		}
+
+		fmt.Printf("Do you want to update csync to %s? (y/n) ", color.MagentaString(targetVersion))
+		var confirm string
+		fmt.Scanf("%s", &confirm)
+		if confirm != "y" {
+			os.Exit(1)
+		}
+
+		tmpDir := os.TempDir()
+		tarPath := filepath.Join(tmpDir, "csync-update", "csync.tar.gz")
+		target := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+		fmt.Printf("Downloading csync(version:%s, target:%s) to %s\n", targetVersion, target, tarPath)
+		err = DownloadRelease(targetVersion, target, tarPath)
+		if err != nil {
+			return fmt.Errorf("Download github release: %w", err)
+		}
+
+		binPath := filepath.Join(tmpDir, "csync-update", "bin")
+		fmt.Printf("Untaring csync binary to %s\n", binPath)
+		err = UnTarTo(tarPath, binPath)
+		if err != nil {
+			return fmt.Errorf("Untar tar.gz file: %w", err)
+		}
+
+		binPath = filepath.Join(binPath, "csync")
+		currentBinPath, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("Get current executable file: %w", err)
+		}
+
+		fmt.Printf("Replacing binary %s\n", currentBinPath)
+
+		// FIXME: Support windows
+		var buf bytes.Buffer
+		cmd := exec.Command("mv", binPath, currentBinPath)
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("Move binary file error: %s", buf.String())
+		}
+
+		fmt.Printf("Update csync to %s done\n", targetVersion)
+
+		toRemoveDir := filepath.Join(tmpDir, "csync-update")
+		err = os.RemoveAll(toRemoveDir)
+		if err != nil {
+			return fmt.Errorf("Remove update tmp dir: %w", err)
 		}
 
 		return nil
