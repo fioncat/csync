@@ -16,13 +16,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	startNoDaemon bool
+)
+
 var StartCommand = &cobra.Command{
-	Use:   "start",
+	Use:   "start [-n]",
 	Short: "Start csync as daemon",
 
 	Args: cobra.ExactArgs(0),
 
 	RunE: func(_ *cobra.Command, _ []string) error {
+		if startNoDaemon {
+			clip, err := NewClipboard()
+			if err != nil {
+				return err
+			}
+			clip.Run()
+			return nil
+		}
 		d, err := NewDaemon()
 		if err != nil {
 			return err
@@ -314,6 +326,8 @@ func ExecInfo(msg string, args ...any) {
 }
 
 func init() {
+	StartCommand.PersistentFlags().BoolVarP(&startNoDaemon, "no-daemon", "n", false, "Start with no daemon mode")
+
 	SendCommand.PersistentFlags().StringVarP(&sendFilename, "file", "f", "", "Read text file to send")
 	SendCommand.PersistentFlags().StringVarP(&sendImage, "image", "i", "", "Read image file to send")
 
