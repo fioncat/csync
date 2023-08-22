@@ -13,7 +13,7 @@ import (
 )
 
 type Clipboard struct {
-	reids *Redis
+	redis *Redis
 
 	hash []byte
 }
@@ -29,7 +29,7 @@ func NewClipboard() (*Clipboard, error) {
 		return nil, err
 	}
 
-	return &Clipboard{reids: redis}, nil
+	return &Clipboard{redis: redis}, nil
 }
 
 func (c *Clipboard) Run() {
@@ -50,7 +50,7 @@ func (c *Clipboard) Run() {
 		}
 	}
 
-	subChan := c.reids.Sub()
+	subChan := c.redis.Sub()
 	if GetConfig().Clipboard.WriteOnly {
 		logrus.Info("Start to subscribe redis")
 		for frame := range subChan {
@@ -133,7 +133,7 @@ func (c *Clipboard) publishRedis(dataType DataFrameType, data []byte) {
 		Data:     data,
 		LogEntry: entry,
 	}
-	err := c.reids.Send(frame)
+	err := c.redis.Send(frame)
 	if err != nil {
 		frame.LogEntry.Errorf("Send data frame to redis error: %v", err)
 		return
