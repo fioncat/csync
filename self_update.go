@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 )
@@ -153,4 +154,39 @@ func UnTarTo(src, dst string) error {
 			}
 		}
 	}
+}
+
+func ReplaceBinary(dstPath, srcPath string) error {
+	// TODO: support Windows system
+	dstDir := filepath.Dir(dstPath)
+
+	testPath := filepath.Join(dstDir, "test.txt")
+	checkPermissionCmd := exec.Command("touch", testPath)
+
+	err := checkPermissionCmd.Run()
+	requirePermission := err != nil
+	if !requirePermission {
+		err = os.Remove(testPath)
+		if err != nil {
+			return fmt.Errorf("Remove tmp test file: %w", err)
+		}
+	}
+
+	var mvCmd *exec.Cmd
+	if requirePermission {
+		ExecInfo("Escalated permissions are required, please input sudo password")
+		mvCmd = exec.Command("sudo", "mv", srcPath, dstPath)
+	} else {
+		mvCmd = exec.Command("mv", srcPath, dstPath)
+	}
+	mvCmd.Stdout = os.Stdout
+	mvCmd.Stderr = os.Stderr
+	mvCmd.Stdin = os.Stdin
+
+	err = mvCmd.Run()
+	if err != nil {
+		return fmt.Errorf("Execute mv command: %w", err)
+	}
+
+	return nil
 }
