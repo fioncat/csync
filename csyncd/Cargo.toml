@@ -1,0 +1,23 @@
+[package]
+name = "csyncd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies.csync_proto]
+path = "../proto"
+
+[dependencies.csync_utils]
+path = "../utils"
+
+[dependencies]
+anyhow = "1.0.79"
+clap = { version = "4.4.18", features = ["derive"] }
+env_logger = "0.11.0"
+log = "0.4.20"
+tokio = { version = "1.35.1", features = ["full"] }
+
+[build-dependencies.csync_utils]
+path = "../utils"
+
+[dev-dependencies]
+scanf = "1.2.1"

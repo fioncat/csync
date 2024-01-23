@@ -1,0 +1,24 @@
+[package]
+name = "csync"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies.csync_proto]
+path = "../proto"
+
+[dependencies.csync_utils]
+path = "../utils"
+
+[dependencies.csync_clipboard]
+path = "../clipboard"
+
+[build-dependencies.csync_utils]
+path = "../utils"
+
+[dependencies]
+anyhow = "1.0.79"
+chrono = "0.4.32"
+clap = { version = "4.4.18", features = ["derive"] }
+console = "0.15.8"
+regex = "1.10.3"
+tokio = { version = "1.35.1", features = ["full"] }

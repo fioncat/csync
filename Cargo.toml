@@ -1,0 +1,9 @@
+[workspace]
+members = [
+  "clipboard",
+  "csync",
+  "csyncd",
+  "proto",
+  "utils",
+]
+resolver = "2"

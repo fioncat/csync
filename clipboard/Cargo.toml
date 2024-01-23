@@ -1,0 +1,18 @@
+[package]
+name = "csync_clipboard"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies.csync_proto]
+path = "../proto"
+
+[dependencies]
+anyhow = "1.0.79"
+arboard = "3.3.0"
+clipboard-master = "3.1.3"
+sha256 = "1.5.0"
+tokio = { version = "1.35.1", features = ["full"] }
+
+[dev-dependencies]
+bincode = "1.3.3"
+scanf = "1.2.1"
