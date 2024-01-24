@@ -3,33 +3,48 @@ use clap::Parser;
 use csync_proto::client::{Client, TerminalPassword};
 use regex::Regex;
 
+/// Clipboard synchronization client
 #[derive(Parser, Debug)]
 #[command(author, version = env!("BUILD_VERSION"), about)]
 pub struct Config {
+    /// The target format is `[<publish>@]<addr>[/<subs>]`.
+    /// Both `publish` and `subs` cannot be empty at the same time.
     #[clap(default_value = "default@127.0.0.1")]
     pub target: String,
 
+    /// The port for the csyncd server.
     #[clap(long, short, default_value = "7703")]
     pub port: u32,
 
+    /// Force skipping authentication. If csyncd is configured with
+    /// authentication, the program will fail.
     #[clap(long)]
     pub no_auth: bool,
 
+    /// Display synchronization results without outputting the
+    /// synchronized clipboard text content to the terminal.
     #[clap(long, short = 'q')]
     pub quiet_content: bool,
 
+    /// Display nothing.
     #[clap(long, short = 'Q')]
     pub quiet_all: bool,
 
+    /// Only output the received content to the terminal without writing
+    /// it to the clipboard.
     #[clap(long, short = 'R')]
     pub read_only: bool,
 
+    /// Receive and transmit only text content, ignoring images.
     #[clap(long, short = 'T')]
     pub text_only: bool,
 
+    /// Interval in milliseconds between attempts to fetch data from
+    /// the server.
     #[clap(long, short = 'i', default_value = "500")]
     pub pull_interval: u32,
 
+    /// Show build info.
     #[clap(long)]
     pub build_info: bool,
 }
