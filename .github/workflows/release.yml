@@ -22,8 +22,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
           - target: x86_64-apple-darwin
@@ -36,12 +34,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install cross-compilation tools
-        if: startsWith(matrix.os, 'ubuntu')
-        uses: taiki-e/setup-cross-toolchain-action@v1
-        with:
-          target: ${{ matrix.target }}
 
       - name: Install Dependencies
         if: startsWith(matrix.os, 'ubuntu')
