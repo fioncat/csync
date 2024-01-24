@@ -24,7 +24,13 @@ jobs:
         run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3 | sed -e "s/^v//")
 
       - name: Build the image
-        run: docker build -f csyncd/Dockerfile -t fioncat/csync:${{ steps.get_version.outputs.VERSION }} .
+        run: docker build -f csyncd/Dockerfile -t fioncat/csyncd:${{ steps.get_version.outputs.VERSION }} .
 
       - name: Push the image
-        run: docker push fioncat/csync:${{ steps.get_version.outputs.VERSION }}
+        run: docker push fioncat/csyncd:${{ steps.get_version.outputs.VERSION }}
+
+      - name: Tag latest image
+        run: docker tag fioncat/csyncd:${{ steps.get_version.outputs.VERSION }} fioncat/csyncd:latest
+
+      - name: Push latest image
+        run: docker push fioncat/csyncd:latest
