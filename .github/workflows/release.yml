@@ -30,7 +30,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: sudo apt-get install libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
-      - uses: taiki-e/upload-rust-binary-action@v4
+      - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: csync,csyncd
           tar: unix
