@@ -2,9 +2,8 @@ name: release
 
 on:
   push:
-    branches:
-      - "main"
-      - "build-*"
+    tags:
+      - '*'
 
 jobs:
   create-release:
