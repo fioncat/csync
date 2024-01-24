@@ -91,12 +91,14 @@ impl ClipboardManager {
         let mut read_tx = self.read_tx.take().unwrap();
         let mut write_rx = self.write_rx.take().unwrap();
 
-        select! {
-            Some(result) = notify.recv() => {
-                self.handle_read(result, &mut read_tx).await;
-            }
-            Some(data_frame) = write_rx.recv() => {
-                self.handle_write(data_frame).await;
+        loop {
+            select! {
+                Some(result) = notify.recv() => {
+                    self.handle_read(result, &mut read_tx).await;
+                }
+                Some(data_frame) = write_rx.recv() => {
+                    self.handle_write(data_frame).await;
+                }
             }
         }
     }
