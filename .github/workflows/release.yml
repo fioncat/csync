@@ -1,0 +1,38 @@
+name: release
+
+on:
+  push:
+    branches:
+      - "main"
+      - "build-*"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  build:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Installing Dependencies
+        if: ${{ runner.os == 'Linux' }}
+        run: sudo apt-get install libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - uses: taiki-e/upload-rust-binary-action@v4
+        with:
+          bin: csync,csyncd
+          tar: unix
+          zip: windows
+          token: ${{ secrets.GITHUB_TOKEN }}
