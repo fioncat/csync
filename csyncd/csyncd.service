@@ -1,0 +1,14 @@
+[Unit]
+Description=Clipboard sync server
+Documentation=https://github.com/fioncat/csync
+
+[Service]
+ExecStart=/usr/local/bin/csyncd \
+            --password=test123
+Restart=always
+RestartSec=3
+StartLimitInterval=0
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
