@@ -1,8 +1,8 @@
-# csync
+# Csync - Share your clipboard easily
 
-csync is a simple network-based cross-device clipboard synchronization tool. It facilitates clipboard synchronization among different platforms (now support MacOS, Linux, and Windows). csync does not require direct network communication between these devices but mandates their ability to access a shared csyncd server for data exchange.
+Csync is a simple network-based cross-device clipboard synchronization tool. It facilitates clipboard synchronization (both text and image are supported) among different platforms (support MacOS, Linux, and Windows). Csync does not require direct network communication between these devices but mandates their ability to access a shared csyncd server for data exchange.
 
-To ensure privacy, csync supports encrypting your clipboard data with a password. For details on encryption and security considerations, please refer to [SECURE.md](SECURE.md). It is strongly recommended to carefully read its contents before using csync.
+To ensure privacy, csync supports encrypting your clipboard data with a password. For details on encryption and security considerations, please refer to [SECURITY.md](SECURITY.md). It is strongly recommended to carefully read its contents before using csync.
 
 ## Install csyncd
 
@@ -95,7 +95,7 @@ systemctl start csyncd
 
 csync is used to interact with csyncd to retrieve clipboard data from other devices and synchronize the data to the clipboard of the current device.
 
-csync operates on a publish/subscribe model. It can publish the clipboard of the current device to a channel or subscribe to the clipboard of other devices on a specific channel.
+csync operates on a publish/subscribe model. It can publish the clipboard of the current device or subscribe to the clipboard of other devices at the same time.
 
 For example, consider two devices, `a` and `b`. Device `a` publishes its clipboard to `channel a` and subscribes to `channel b`; device `b` publishes its clipboard to `channel b` and subscribes to `channel a`. This way, clipboard sharing is achieved between the two devices.
 
@@ -118,6 +118,22 @@ Arguments:
 - `<sub0>,<sub-1>,...`: The subcribe channel(s), can be multiple.
 
 If your csyncd is configured with a password, before initiating synchronization, csync will prompt you to enter the password for authentication.
+
+Assuming you have a MacBook device and a Linux host, and you have deployed a csyncd on the local network with the address `192.168.12.32`.
+
+If you want to share the clipboard of the two devices, you can run the following command in Linux:
+
+```bash
+csync linux@192.168.12.32/mac
+```
+
+Run the following command in Mac:
+
+```bash
+csync mac@192.168.12.32/linux
+```
+
+Now, the text/image copied in one device will be synchronize to another device automatically.
 
 ## Build from source
 
