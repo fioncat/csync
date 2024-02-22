@@ -31,7 +31,7 @@ impl Auth {
     const PBKDF2_ROUNDS: u32 = 600_000;
 
     pub fn new<S: AsRef<str>>(password: S) -> Auth {
-        let mut rng = OsRng::default();
+        let mut rng = OsRng;
         let nonce = Self::generate_nonce(&mut rng);
         let salt = Self::generate_salt(&mut rng);
         let key = Self::generate_key(password, &salt);
@@ -59,7 +59,7 @@ impl Auth {
     }
 
     pub fn build_frame(&self) -> Result<AuthFrame, AuthError> {
-        let mut rng = OsRng::default();
+        let mut rng = OsRng;
         let check_plain = Self::generate_check_plain(&mut rng);
         let check = self.encrypt(&check_plain)?;
 
@@ -73,9 +73,9 @@ impl Auth {
 
     pub fn encrypt(&self, plain_data: &[u8]) -> Result<Vec<u8>, AuthError> {
         let key = Key::<Aes256Gcm>::from_slice(&self.key);
-        let mut cipher = Aes256Gcm::new(&key);
+        let mut cipher = Aes256Gcm::new(key);
         let nonce = Nonce::<Aes256Gcm>::from_slice(&self.nonce);
-        match cipher.encrypt(&nonce, plain_data) {
+        match cipher.encrypt(nonce, plain_data) {
             Ok(data) => Ok(data),
             Err(err) => Err(AuthError::AesError(err)),
         }
@@ -83,9 +83,9 @@ impl Auth {
 
     pub fn decrypt(&self, cipher_data: &[u8]) -> Result<Vec<u8>, AuthError> {
         let key = Key::<Aes256Gcm>::from_slice(&self.key);
-        let mut cipher = Aes256Gcm::new(&key);
+        let mut cipher = Aes256Gcm::new(key);
         let nonce = Nonce::<Aes256Gcm>::from_slice(&self.nonce);
-        match cipher.decrypt(&nonce, cipher_data) {
+        match cipher.decrypt(nonce, cipher_data) {
             Ok(data) => Ok(data),
             Err(_) => Err(AuthError::IncorrectPassword),
         }
@@ -93,7 +93,7 @@ impl Auth {
 
     #[inline]
     fn generate_key<S: AsRef<str>>(password: S, salt: &[u8]) -> [u8; Self::KEY_LENGTH] {
-        pbkdf2_hmac_array::<Sha256, 32>(password.as_ref().as_bytes(), &salt, Self::PBKDF2_ROUNDS)
+        pbkdf2_hmac_array::<Sha256, 32>(password.as_ref().as_bytes(), salt, Self::PBKDF2_ROUNDS)
     }
 
     #[inline]

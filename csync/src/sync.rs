@@ -24,19 +24,19 @@ impl Sync {
     pub async fn new(cfg: &Config) -> Result<Sync> {
         let target = Target::parse(&cfg.target)?;
         let mut readonly = false;
-        if let None = target.subs {
+        if target.subs.is_none() {
             readonly = true;
         }
 
         let mut writeonly = false;
-        if let None = target.publish {
+        if target.publish.is_none() {
             writeonly = true;
         }
 
         let cb = Clipboard::new(readonly, writeonly).context("init clipboard")?;
 
-        let output = Output::new(&cfg, &target);
-        let client = target.build_client(&cfg).await?;
+        let output = Output::new(cfg, &target);
+        let client = target.build_client(cfg).await?;
 
         if cfg.pull_interval < 100 || cfg.pull_interval > 20000 {
             bail!("invalid pull_interval, should be in range [100, 20000]")
@@ -55,7 +55,7 @@ impl Sync {
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        if let None = self.cb.read_rx {
+        if self.cb.read_rx.is_none() {
             let mut write_tx = self.cb.write_tx.take().unwrap();
             let mut pull_intv = time::interval_at(self.start, self.pull_intv);
 
@@ -71,7 +71,7 @@ impl Sync {
             }
         }
 
-        if let None = self.cb.write_tx {
+        if self.cb.write_tx.is_none() {
             let mut read_rx = self.cb.read_rx.take().unwrap();
             loop {
                 select! {
@@ -105,7 +105,7 @@ impl Sync {
     }
 
     async fn handle_publish(&mut self, frame: Option<DataFrame>) -> Result<()> {
-        if let None = frame {
+        if frame.is_none() {
             return Ok(());
         }
         let frame = frame.unwrap();
@@ -120,7 +120,7 @@ impl Sync {
 
     async fn handle_sub(&mut self, write_tx: &mut Sender<DataFrame>) -> Result<()> {
         let frame = self.client.pull().await.context("pull data from server")?;
-        if let None = frame {
+        if frame.is_none() {
             return Ok(());
         }
         let frame = frame.unwrap();

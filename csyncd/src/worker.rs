@@ -67,8 +67,8 @@ impl Worker {
             }
         }
 
-        let publish = self.publish.as_ref().map(|p| Arc::clone(p));
-        let subs = self.subs.as_ref().map(|s| Arc::clone(s));
+        let publish = self.publish.as_ref().map(Arc::clone);
+        let subs = self.subs.as_ref().map(Arc::clone);
 
         if let Err(err) = self
             .ch
@@ -138,7 +138,7 @@ impl Worker {
     async fn handle_push(&mut self, frame: Frame) -> Result<()> {
         if let Some(publish) = self.publish.as_ref() {
             let mut data = frame.expect_data().unwrap().unwrap();
-            if let None = data.from {
+            if data.from.is_none() {
                 data.from = Some(publish.to_string());
             }
 

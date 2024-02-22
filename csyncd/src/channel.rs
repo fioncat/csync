@@ -146,10 +146,8 @@ impl ChannelHandler {
         publish: Option<Arc<String>>,
         subs: Option<Arc<Vec<String>>>,
     ) -> Result<()> {
-        if let None = publish {
-            if let None = subs {
-                return Ok(());
-            }
+        if publish.is_none() && subs.is_none() {
+            return Ok(());
         }
         let (resp_tx, resp_rx) = oneshot::channel::<()>();
         let req = CloseRequest {
@@ -227,7 +225,7 @@ impl ChannelManager {
                 Some(channel) => channel,
                 None => continue,
             };
-            if let None = channel.data {
+            if channel.data.is_none() {
                 continue;
             }
             if let Some(update) = channel.subs.get_mut(req.addr.as_ref()) {
@@ -239,7 +237,7 @@ impl ChannelManager {
                 channel.subs.insert(req.addr.as_ref().to_string(), false);
             }
 
-            if let None = result {
+            if result.is_none() {
                 let frame = channel.data.as_ref().unwrap();
                 let frame = Arc::clone(frame);
                 result = Some(frame);
@@ -276,7 +274,7 @@ impl ChannelManager {
         if cfg!(test) {
             self.assert_addr_remove(addr.as_ref());
             if let Some(publish) = publish.as_ref() {
-                if let Some(_) = self.channels.get(publish.as_ref()) {
+                if self.channels.get(publish.as_ref()).is_some() {
                     panic!("unexpect channel exists: {publish}");
                 }
             }
