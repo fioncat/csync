@@ -40,7 +40,7 @@ impl Connection {
         }
         .context("create tcp socket")?;
         let stream = socket
-            .connect(addr.clone())
+            .connect(*addr)
             .await
             .with_context(|| format!("connect to '{}'", addr))?;
         Ok(Self::new(stream, auth))

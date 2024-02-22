@@ -279,7 +279,7 @@ impl Frame {
         }
 
         let from = match get_data_option(src, auth)? {
-            Some(data) => Some(parse_string(&data.to_vec())?),
+            Some(data) => Some(parse_string(&data)?),
             None => None,
         };
 
@@ -404,7 +404,7 @@ fn skip(src: &mut Cursor<&[u8]>, n: usize) -> Result<(), FrameError> {
 fn parse_string(data: &[u8]) -> Result<String, FrameError> {
     match String::from_utf8(data.to_vec()) {
         Ok(text) => Ok(text),
-        Err(_) => return Err(FrameError::Protocol("invalid text, not uft-8 encoded")),
+        Err(_) => Err(FrameError::Protocol("invalid text, not uft-8 encoded")),
     }
 }
 
@@ -434,6 +434,6 @@ fn decode_object<T: DeserializeOwned>(data: &[u8]) -> Result<T, FrameError> {
 fn encode_object<T: Serialize>(value: &T) -> Result<Vec<u8>, FrameError> {
     match bincode::serialize(value) {
         Ok(data) => Ok(data),
-        Err(_) => return Err(FrameError::Protocol("encode frame failed")),
+        Err(_) => Err(FrameError::Protocol("encode frame failed")),
     }
 }

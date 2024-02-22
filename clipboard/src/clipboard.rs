@@ -76,14 +76,14 @@ impl ClipboardManager {
     const INCORRECT_CLIPBOARD_TYPE_ERROR: &'static str = "incorrect type received from clipboard";
 
     async fn main_loop(&mut self) {
-        if let None = self.read_tx {
-            if let None = self.write_rx {
+        if self.read_tx.is_none() {
+            if self.write_rx.is_none() {
                 unreachable!();
             }
             return self.writeonly_loop().await;
         }
 
-        if let None = self.write_rx {
+        if self.write_rx.is_none() {
             return self.readonly_loop().await;
         }
 
@@ -161,14 +161,16 @@ impl ClipboardManager {
     fn read(&mut self) -> Result<Option<DataFrame>> {
         match self.driver.get_text() {
             Ok(text) => {
-                let digest = Some(digest(&text));
-                if digest == self.digest {
-                    return Ok(None);
+                let digest = digest(&text);
+                if let Some(current_digest) = self.digest.as_ref() {
+                    if current_digest == &digest {
+                        return Ok(None);
+                    }
                 }
-                self.digest = digest.clone();
+                self.digest = Some(digest.clone());
                 return Ok(Some(DataFrame {
                     from: None,
-                    digest: digest.unwrap(),
+                    digest,
                     data: ClipboardFrame::Text(text),
                 }));
             }
@@ -183,14 +185,16 @@ impl ClipboardManager {
             Ok(image) => {
                 let (width, height) = (image.width as u64, image.height as u64);
                 let data = image.bytes.into_owned();
-                let digest = Some(digest::<&[u8]>(&data));
-                if digest == self.digest {
-                    return Ok(None);
+                let digest = digest::<&[u8]>(&data);
+                if let Some(current_digest) = self.digest.as_ref() {
+                    if current_digest == &digest {
+                        return Ok(None);
+                    }
                 }
-                self.digest = digest.clone();
+                self.digest = Some(digest.clone());
                 Ok(Some(DataFrame {
                     from: None,
-                    digest: digest.unwrap(),
+                    digest,
                     data: ClipboardFrame::Image(ClipboardImage {
                         width,
                         height,
@@ -280,10 +284,9 @@ impl ClipboardNotify {
         let mut master = ClipboardMaster::new(notify);
 
         std::thread::spawn(move || {
-            match master.run() {
-                // We would never stop watching, so the function should never be returned.
-                _ => unreachable!(),
-            }
+            let _ = master.run();
+            // We would never stop watching, so the function should never be returned.
+            unreachable!();
         });
 
         rx

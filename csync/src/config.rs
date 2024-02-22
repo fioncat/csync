@@ -68,7 +68,7 @@ impl Target {
             None => bail!("invalid target format '{}'", s.as_ref()),
         };
 
-        if let None = caps.get(0) {
+        if caps.get(0).is_none() {
             bail!("invalid target '{}', did not match regex", s.as_ref());
         }
 
@@ -76,7 +76,7 @@ impl Target {
         if let Some(publish_name) = caps.get(1) {
             let name = publish_name
                 .as_str()
-                .strip_suffix("@")
+                .strip_suffix('@')
                 .unwrap_or(publish_name.as_str());
             publish = Some(name.to_string());
         }
@@ -90,7 +90,7 @@ impl Target {
         if let Some(sub_names) = caps.get(3) {
             let sub_names = sub_names
                 .as_str()
-                .strip_prefix("/")
+                .strip_prefix('/')
                 .unwrap_or(sub_names.as_str());
             subs = Some(
                 sub_names
@@ -100,13 +100,11 @@ impl Target {
             );
         }
 
-        if let None = publish {
-            if let None = subs {
-                bail!(
-                    "invalid target '{}', you must provide publish or subs in target",
-                    s.as_ref()
-                );
-            }
+        if publish.is_none() && subs.is_none() {
+            bail!(
+                "invalid target '{}', you must provide publish or subs in target",
+                s.as_ref()
+            );
         }
 
         Ok(Target {

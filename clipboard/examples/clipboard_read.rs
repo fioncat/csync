@@ -23,7 +23,7 @@ async fn main() {
 
 fn handle_read(data_frame: Option<DataFrame>) {
     println!("Clipboard changed");
-    if let None = data_frame {
+    if data_frame.is_none() {
         println!();
         return;
     }

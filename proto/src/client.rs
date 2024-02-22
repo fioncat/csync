@@ -66,10 +66,8 @@ impl<P: Password> Client<P> {
         subs: Option<Vec<String>>,
         password: P,
     ) -> Result<Client<P>> {
-        if let None = publish {
-            if let None = subs {
-                bail!("publish and subs cannot be empty at the same time");
-            }
+        if publish.is_none() && subs.is_none() {
+            bail!("publish and subs cannot be empty at the same time");
         }
 
         let addr = Self::parse_addr(addr).await?;
@@ -85,9 +83,8 @@ impl<P: Password> Client<P> {
     }
 
     async fn parse_addr<S: AsRef<str>>(addr: S) -> Result<SocketAddr> {
-        match addr.as_ref().parse::<SocketAddr>() {
-            Ok(addr) => return Ok(addr),
-            Err(_) => {}
+        if let Ok(addr) = addr.as_ref().parse::<SocketAddr>() {
+            return Ok(addr);
         }
 
         let addrs: Vec<SocketAddr> = lookup_host(addr.as_ref())
