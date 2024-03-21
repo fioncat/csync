@@ -1,16 +1,21 @@
+use std::borrow::Cow;
 use std::fs;
 use std::io::{self, Read};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use clap::Args;
 use log::info;
 use sha2::{Digest, Sha256};
+use tokio::net::TcpStream;
+use tokio::time::{self, Instant};
 
 use crate::config::Config;
 use crate::net::client::SendClient;
 use crate::net::frame::{DataFrame, DataFrameInfo, FileInfo};
+use crate::utils::Cmd;
 
 /// Send content to server
 #[derive(Args)]
@@ -54,23 +59,52 @@ impl SendArgs {
         self.send(&cfg).await
     }
 
-    async fn watch(&self, _cfg: &Config) -> Result<()> {
-        println!("Watch: {:?}", self.watch_cmd);
-        todo!()
+    async fn watch(&self, cfg: &Config) -> Result<()> {
+        let (mut send_client, device) = self.connect_server(cfg).await?;
+
+        let mut info = DataFrameInfo {
+            device: Some(device.into_owned()),
+            digest: String::new(),
+            file: None,
+        };
+
+        let mut intv = time::interval_at(Instant::now(), Duration::from_millis(200));
+
+        loop {
+            intv.tick().await;
+
+            let mut cmd = Cmd::new(&self.watch_cmd, None, true);
+            let output = cmd.execute().context("execute watch command")?;
+            if output.is_none() {
+                continue;
+            }
+
+            let data = output.unwrap();
+            let digest = self.get_digest(&data);
+            if digest == info.digest {
+                continue;
+            }
+
+            let frame = DataFrame {
+                // TODO: Here we can use `Cow` to save this `clone`.
+                info: info.clone(),
+                body: data,
+            };
+
+            send_client
+                .send(&frame)
+                .await
+                .context("send data to server")?;
+            info.digest = digest;
+        }
     }
 
     async fn send(&self, cfg: &Config) -> Result<()> {
-        let device = cfg.get_device();
-        let addr = cfg.get_server();
-        let password = cfg.get_password();
+        let (mut send_client, device) = self.connect_server(cfg).await?;
 
         let (file_info, data) = self.get_data()?;
         let digest = self.get_digest(&data);
         let data_len = data.len();
-
-        let mut send_client = SendClient::connect(addr, device.as_ref(), password)
-            .await
-            .context("connect to server")?;
 
         let data_frame = DataFrame {
             info: DataFrameInfo {
@@ -88,6 +122,19 @@ impl SendArgs {
         info!("Send {data_len} data to server done");
 
         Ok(())
+    }
+
+    async fn connect_server<'a>(
+        &self,
+        cfg: &'a Config,
+    ) -> Result<(SendClient<TcpStream>, Cow<'a, str>)> {
+        let device = cfg.get_device();
+        let addr = cfg.get_server();
+        let password = cfg.get_password();
+        let send_client = SendClient::connect(addr, device.as_ref(), password)
+            .await
+            .context("connect to server")?;
+        Ok((send_client, device))
     }
 
     fn get_data(&self) -> Result<(Option<FileInfo>, Vec<u8>)> {

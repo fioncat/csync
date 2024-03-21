@@ -9,6 +9,7 @@ use log::info;
 use crate::config::Config;
 use crate::net::client::WatchClient;
 use crate::net::frame::DataFrame;
+use crate::utils::Cmd;
 
 /// Watch and receive content from server
 #[derive(Args)]
@@ -56,7 +57,10 @@ impl WatchArgs {
                 // TODO: Support Windows
                 opts.mode(file_info.mode as u32);
 
-                println!("Download {data_size} data to file {}", path.display());
+                println!(
+                    "From '{from}': Download {data_size} data to file {}",
+                    path.display()
+                );
                 let mut file = opts
                     .open(&path)
                     .with_context(|| format!("open file to download '{}'", path.display()))?;
@@ -80,7 +84,19 @@ impl WatchArgs {
         }
     }
 
-    fn execute_cmd(&self, _frame: DataFrame) -> Result<()> {
-        todo!()
+    fn execute_cmd(&self, frame: DataFrame) -> Result<()> {
+        let DataFrame { info, body } = frame;
+        let data_len = body.len();
+
+        println!(
+            "From '{}': Send {data_len} data to command",
+            info.device.unwrap_or_default()
+        );
+
+        let mut cmd = Cmd::new(&self.exec, Some(body), false);
+        cmd.execute()?;
+        println!();
+
+        Ok(())
     }
 }
