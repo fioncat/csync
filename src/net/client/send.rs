@@ -5,8 +5,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
 use crate::net::client::Client;
-use crate::net::conn::Connection;
 use crate::net::frame::{DataFrame, Frame};
+
+#[cfg(test)]
+use crate::net::conn::Connection;
 
 pub struct SendClient<S: AsyncWrite + AsyncRead + Unpin>(Client<S>);
 
@@ -26,6 +28,7 @@ impl SendClient<TcpStream> {
 
 impl<S: AsyncWrite + AsyncRead + Unpin> SendClient<S> {
     #[inline]
+    #[cfg(test)]
     pub async fn new<D, P>(conn: Connection<S>, device: D, password: Option<P>) -> Result<Self>
     where
         D: AsRef<str>,

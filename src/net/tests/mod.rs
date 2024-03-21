@@ -3,6 +3,7 @@ mod net;
 mod server;
 
 use std::fs;
+use std::path::PathBuf;
 
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc::{self, Receiver};
@@ -40,7 +41,7 @@ fn get_test_data_frames() -> Vec<DataFrame> {
 async fn start_server(name: &str) -> Receiver<Connection<UnixStream>> {
     let path = format!("_test_data/socks/{name}.sock");
     let _ = fs::remove_file(&path);
-    utils::ensure_dir(&path).expect("mkdir for sock file");
+    utils::ensure_dir(PathBuf::from(&path).parent().unwrap()).expect("mkdir for sock file");
     let listener = UnixListener::bind(path).expect("bind server");
 
     let (tx, rx) = mpsc::channel::<Connection<UnixStream>>(1);

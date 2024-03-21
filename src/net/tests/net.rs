@@ -78,7 +78,7 @@ async fn _test_frame(name: &str, auth: Option<Auth>) {
 }
 
 async fn _test_frame_write(path: &str, auth: Option<Auth>) {
-    utils::ensure_dir(path).unwrap();
+    utils::ensure_dir(PathBuf::from(path).parent().unwrap()).unwrap();
 
     let file = File::create(&path).await.unwrap();
     let mut conn = Connection::new(file);

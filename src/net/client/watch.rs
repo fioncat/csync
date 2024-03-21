@@ -5,8 +5,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
 use crate::net::client::Client;
-use crate::net::conn::Connection;
 use crate::net::frame::{DataFrame, Frame};
+
+#[cfg(test)]
+use crate::net::conn::Connection;
 
 pub struct WatchClient<S: AsyncWrite + AsyncRead + Unpin>(Client<S>);
 
@@ -24,6 +26,7 @@ impl WatchClient<TcpStream> {
 
 impl<S: AsyncWrite + AsyncRead + Unpin> WatchClient<S> {
     #[inline]
+    #[cfg(test)]
     pub async fn new<P>(
         conn: Connection<S>,
         devices: &[String],
