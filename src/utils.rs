@@ -62,7 +62,7 @@ impl Cmd {
         let args = &args[1..];
 
         let mut cmd = Command::new(name);
-        cmd.stderr(io::stdout());
+        cmd.stderr(Stdio::piped());
         if !capture_output {
             cmd.stdout(Stdio::inherit());
         } else {

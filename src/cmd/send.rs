@@ -21,19 +21,20 @@ use crate::utils::Cmd;
 #[derive(Args)]
 pub struct SendArgs {
     /// Send text to server
+    #[clap(long, short)]
     pub text: Option<String>,
 
     /// Send file to server
     #[clap(long, short)]
     pub file: Option<String>,
 
-    /// Watch the command `WATCH_CMD` and send changes to server
-    #[clap(long, short)]
-    pub watch: bool,
-
     /// The config file to use. Default is `~/.config/csync.toml`
     #[clap(long, short)]
     pub config: Option<String>,
+
+    /// Ignore command execute error
+    #[clap(long, short)]
+    pub ignore_error: bool,
 
     /// The command to watch, commonly is the clipboard command, like `xclip`, `wl-copy`,
     /// `pbcopy`, etc.
@@ -44,16 +45,8 @@ pub struct SendArgs {
 impl SendArgs {
     pub async fn run(&self) -> Result<()> {
         let cfg = Config::load(self.config.as_deref()).context("load config")?;
-        if self.watch {
-            if self.watch_cmd.is_empty() {
-                bail!("in watch mode, the watch command cannot be empty, please refer to command usage");
-            }
-
-            return self.watch(&cfg).await;
-        }
-
         if !self.watch_cmd.is_empty() {
-            bail!("the watch command should be only provided in watch mode, please refer to command usage");
+            return self.watch(&cfg).await;
         }
 
         self.send(&cfg).await
@@ -62,11 +55,12 @@ impl SendArgs {
     async fn watch(&self, cfg: &Config) -> Result<()> {
         let (mut send_client, device) = self.connect_server(cfg).await?;
 
-        let mut info = DataFrameInfo {
+        let info = DataFrameInfo {
             device: Some(device.into_owned()),
             digest: String::new(),
             file: None,
         };
+        let mut current_info = Some(info);
 
         let mut intv = time::interval_at(Instant::now(), Duration::from_millis(200));
 
@@ -74,35 +68,43 @@ impl SendArgs {
             intv.tick().await;
 
             let mut cmd = Cmd::new(&self.watch_cmd, None, true);
-            let output = cmd.execute().context("execute watch command")?;
+            let output = match cmd.execute().context("execute watch command") {
+                Ok(output) => output,
+                Err(err) => {
+                    if self.ignore_error {
+                        continue;
+                    }
+                    return Err(err.context("execute watch command"));
+                }
+            };
             if output.is_none() {
                 continue;
             }
 
             let data = output.unwrap();
             let digest = self.get_digest(&data);
-            if digest == info.digest {
+            if digest == current_info.as_ref().unwrap().digest {
                 continue;
             }
 
-            let frame = DataFrame {
-                // TODO: Here we can use `Cow` to save this `clone`.
-                info: info.clone(),
-                body: data,
-            };
-
+            println!("Send {} data to server", data.len());
+            let info = current_info.take().unwrap();
+            let mut frame = DataFrame { info, body: data };
             send_client
                 .send(&frame)
                 .await
                 .context("send data to server")?;
-            info.digest = digest;
+
+            frame.info.digest = digest;
+            current_info = Some(frame.info);
         }
     }
 
     async fn send(&self, cfg: &Config) -> Result<()> {
+        let (file_info, data) = self.get_data()?;
+
         let (mut send_client, device) = self.connect_server(cfg).await?;
 
-        let (file_info, data) = self.get_data()?;
         let digest = self.get_digest(&data);
         let data_len = data.len();
 
