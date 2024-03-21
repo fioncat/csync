@@ -1,8 +1,0 @@
-[package]
-name = "csync_utils"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-simple-error = "0.3.0"
-vergen = { version = "8.3.1", features = [ "build", "rustc" ] }
