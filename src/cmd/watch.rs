@@ -7,6 +7,7 @@ use clap::Args;
 use log::info;
 
 use crate::config::Config;
+use crate::ignore;
 use crate::net::client::WatchClient;
 use crate::net::frame::DataFrame;
 use crate::utils::Cmd;
@@ -40,6 +41,9 @@ impl WatchArgs {
         loop {
             let frame = watch_client.recv().await.context("recv data from server")?;
             let data_size = frame.body.len();
+            if data_size == 0 {
+                continue;
+            }
 
             let from = frame.info.device.clone().unwrap_or_default();
             info!(
@@ -73,6 +77,7 @@ impl WatchArgs {
             }
 
             if !self.exec.is_empty() {
+                ignore::save(&frame.info.digest).context("save watch data digest to ignore")?;
                 self.execute_cmd(frame).context("execute command")?;
                 continue;
             }

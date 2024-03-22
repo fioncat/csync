@@ -1,5 +1,6 @@
 mod cmd;
 mod config;
+mod ignore;
 mod net;
 mod utils;
 

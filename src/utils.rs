@@ -7,6 +7,7 @@ use std::process::Stdio;
 use anyhow::bail;
 use anyhow::{Context, Result};
 use log::info;
+use sha2::{Digest, Sha256};
 
 pub fn ensure_dir<P: AsRef<Path>>(dir: P) -> Result<()> {
     match fs::read_dir(dir.as_ref()) {
@@ -132,4 +133,11 @@ impl Cmd {
     fn get_name(&self) -> &str {
         self.cmd.get_program().to_str().unwrap_or("<unknown>")
     }
+}
+
+pub fn get_digest(data: &[u8]) -> String {
+    let mut hash = Sha256::new();
+    hash.update(data);
+    let result = hash.finalize();
+    format!("{:x}", result)
 }

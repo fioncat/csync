@@ -8,7 +8,6 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use clap::Args;
 use log::info;
-use sha2::{Digest, Sha256};
 use tokio::net::TcpStream;
 use tokio::time::{self, Instant};
 
@@ -16,6 +15,7 @@ use crate::config::Config;
 use crate::net::client::SendClient;
 use crate::net::frame::{DataFrame, DataFrameInfo, FileInfo};
 use crate::utils::Cmd;
+use crate::{ignore, utils};
 
 /// Send content to server
 #[derive(Args)]
@@ -82,20 +82,20 @@ impl SendArgs {
             }
 
             let data = output.unwrap();
-            let digest = self.get_digest(&data);
-            if digest == current_info.as_ref().unwrap().digest {
+            if data.is_empty() {
                 continue;
             }
 
-            println!("Send {} data to server", data.len());
+            let digest = utils::get_digest(&data);
+            if digest == current_info.as_ref().unwrap().digest {
+                continue;
+            }
             let info = current_info.take().unwrap();
             let mut frame = DataFrame { info, body: data };
-            send_client
-                .send(&frame)
-                .await
-                .context("send data to server")?;
-
             frame.info.digest = digest;
+
+            self.send_data(&mut send_client, &frame).await?;
+
             current_info = Some(frame.info);
         }
     }
@@ -105,8 +105,7 @@ impl SendArgs {
 
         let (mut send_client, device) = self.connect_server(cfg).await?;
 
-        let digest = self.get_digest(&data);
-        let data_len = data.len();
+        let digest = utils::get_digest(&data);
 
         let data_frame = DataFrame {
             info: DataFrameInfo {
@@ -117,11 +116,7 @@ impl SendArgs {
             body: data,
         };
 
-        send_client
-            .send(&data_frame)
-            .await
-            .context("send data to server")?;
-        info!("Send {data_len} data to server done");
+        self.send_data(&mut send_client, &data_frame).await?;
 
         Ok(())
     }
@@ -181,10 +176,30 @@ impl SendArgs {
         Ok((None, buf))
     }
 
-    fn get_digest(&self, data: &[u8]) -> String {
-        let mut hash = Sha256::new();
-        hash.update(data);
-        let result = hash.finalize();
-        format!("{:x}", result)
+    async fn send_data(
+        &self,
+        send_client: &mut SendClient<TcpStream>,
+        frame: &DataFrame,
+    ) -> Result<()> {
+        if frame.body.is_empty() {
+            return Ok(());
+        }
+
+        let ignore_digest = ignore::load().context("load ignore digest")?;
+        if let Some(ignore_digest) = ignore_digest {
+            if frame.info.digest == ignore_digest {
+                info!("The data was received from server recently, ignore it once");
+                ignore::remove().context("reset ignore digest")?;
+                return Ok(());
+            }
+        }
+
+        send_client
+            .send(frame)
+            .await
+            .context("send data to server")?;
+        info!("Send {} data to server done", frame.body.len());
+
+        Ok(())
     }
 }
