@@ -21,6 +21,26 @@ pub struct Config {
     download_dir: Option<String>,
 
     password: Option<String>,
+
+    read: Option<ReadConfig>,
+    write: Option<WriteConfig>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReadConfig {
+    pub cmd: Option<Vec<String>>,
+
+    pub interval: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WriteConfig {
+    pub download_dir: Option<String>,
+
+    pub text_cmd: Option<Vec<String>>,
+
+    pub image_cmd: Option<Vec<String>>,
+    pub download_image: Option<bool>,
 }
 
 impl Config {
@@ -60,6 +80,8 @@ impl Config {
                     watch: None,
                     download_dir: None,
                     password: None,
+                    read: None,
+                    write: None,
                 })
             }
 
@@ -105,19 +127,6 @@ impl Config {
         bail!("The watch devices in config is empty, nothing to watch")
     }
 
-    pub fn get_download_dir(&self) -> Result<PathBuf> {
-        let dir = match self.download_dir.as_ref() {
-            Some(path) if !path.is_empty() => PathBuf::from(path),
-            _ => match dirs::download_dir() {
-                Some(dir) => dir.join("csync"),
-                None => bail!("no default download dir for your system, please config one"),
-            },
-        };
-
-        utils::ensure_dir(&dir)?;
-        Ok(dir)
-    }
-
     pub fn get_password(&self) -> Option<&str> {
         if let Some(password) = self.password.as_ref() {
             if !password.is_empty() {
@@ -127,5 +136,20 @@ impl Config {
 
         warn!("You are using csync without a password, your clipboard data will be exposed to network directly, please donot copy any sensitive data");
         None
+    }
+
+    #[inline]
+    pub fn get_read(&mut self) -> Option<ReadConfig> {
+        self.read.take()
+    }
+
+    #[inline]
+    pub fn get_write(&mut self) -> WriteConfig {
+        self.write.take().unwrap_or(WriteConfig {
+            download_dir: None,
+            text_cmd: None,
+            image_cmd: None,
+            download_image: None,
+        })
     }
 }

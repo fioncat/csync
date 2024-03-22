@@ -1,7 +1,9 @@
+#![allow(dead_code)]
+
 mod cmd;
 mod config;
-mod ignore;
 mod net;
+mod sync;
 mod utils;
 
 use std::{env, process};
