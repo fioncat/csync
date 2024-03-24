@@ -1,97 +1,98 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{Context, Error, Result};
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::oneshot;
 use tokio::time::{self, Instant};
 
-use crate::config::Config;
+use crate::config::{Config, ReadConfig};
 use crate::utils::{self, Cmd};
+
+struct ReadController {}
+
+struct UpdateDigestRequest {
+    digest: String,
+}
 
 fn start(cfg: &mut Config, err_tx: Sender<Error>) -> Result<Receiver<(Vec<u8>, String)>> {
     let (tx, rx) = mpsc::channel::<(Vec<u8>, String)>(512);
+    let (digest_tx, digest_rx) = mpsc::channel::<String>(512);
 
-    let reader = Reader::new(cfg, tx, err_tx)?;
+    let reader = Reader::new(cfg, tx, digest_rx, err_tx)?;
     if reader.is_none() {
         return Ok(rx);
     }
 
     let mut reader = reader.unwrap();
-    tokio::spawn(async move {
-        reader.run().await;
-    });
+    tokio::spawn(async move { reader.run().await });
 
     Ok(rx)
 }
 
 struct Reader {
-    cmd: Vec<String>,
-    digest: String,
-    tx: Sender<(Vec<u8>, String)>,
-    interval: u32,
+    cfg: ReadConfig,
 
+    digest: String,
+
+    notify_path: Option<PathBuf>,
+
+    tx: Sender<(Vec<u8>, String)>,
+    digest_rx: Receiver<String>,
     err_tx: Sender<Error>,
 }
 
 impl Reader {
-    const DEFAULT_INTERVAL: u32 = 200;
-
-    const MIN_INTERVAL: u32 = 100;
-    const MAX_INTERVAL: u32 = 5000;
-
     fn new(
         cfg: &mut Config,
         tx: Sender<(Vec<u8>, String)>,
+        digest_rx: Receiver<String>,
         err_tx: Sender<Error>,
     ) -> Result<Option<Self>> {
-        let read_cfg = cfg.get_read();
+        let read_cfg = cfg.read.take();
         if read_cfg.is_none() {
             return Ok(None);
         }
-
         let read_cfg = read_cfg.unwrap();
-        if read_cfg.cmd.is_none() {
-            return Ok(None);
-        }
 
-        let interval = match read_cfg.interval {
-            Some(interval) => {
-                if !(Self::MIN_INTERVAL..=Self::MAX_INTERVAL).contains(&interval) {
-                    bail!(
-                        "invalid read interval in config, should be in [{}, {}]",
-                        Self::MIN_INTERVAL,
-                        Self::MAX_INTERVAL
-                    );
-                }
-
-                interval
-            }
-            None => Self::DEFAULT_INTERVAL,
+        let notify_path = if read_cfg.notify {
+            Some(cfg.get_notify_path())
+        } else {
+            None
         };
 
-        let cmd = read_cfg.cmd.unwrap();
-
         Ok(Some(Self {
-            cmd,
+            cfg: read_cfg,
             digest: String::new(),
+            notify_path,
             tx,
-            interval,
+            digest_rx,
             err_tx,
         }))
     }
 
     async fn run(&mut self) {
-        let mut intv =
-            time::interval_at(Instant::now(), Duration::from_millis(self.interval as u64));
+        let mut intv = time::interval_at(
+            Instant::now(),
+            Duration::from_millis(self.cfg.interval.into()),
+        );
 
         loop {
             intv.tick().await;
 
-            let mut cmd = Cmd::new(&self.cmd, None, true);
-            let result = cmd.execute();
+            let result = if self.cfg.notify {
+                let path = self.notify_path.as_ref().unwrap();
+                utils::read_filelock(path).context("read notify file")
+            } else {
+                if self.cfg.cmd.is_empty() {
+                    unreachable!("this check should be done in Config::validate");
+                }
+                Cmd::new(&self.cfg.cmd, None, true).execute()
+            };
             if let Err(err) = result {
                 self.err_tx.send(err).await.unwrap();
                 return;
-            };
+            }
             let data = result.unwrap();
             if data.is_none() {
                 continue;
