@@ -1,12 +1,19 @@
 use anyhow::Result;
 use clap::Args;
 
-/// Watch and receive content from server
+use crate::{config::Config, sync};
+
+/// Watch clipboard and server
 #[derive(Args)]
-pub struct WatchArgs {}
+pub struct WatchArgs {
+    /// The config file to use.
+    #[clap(long, short)]
+    pub config: Option<String>,
+}
 
 impl WatchArgs {
     pub async fn run(&self) -> Result<()> {
-        todo!()
+        let cfg = Config::load(self.config.as_deref())?;
+        sync::start(cfg).await
     }
 }

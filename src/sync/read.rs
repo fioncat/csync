@@ -38,25 +38,22 @@ impl ReadRequest {
     }
 }
 
-pub(super) fn start(cfg: &mut Config, err_tx: Sender<Error>) -> Result<ReadRequest> {
+pub(super) fn start(cfg: &mut Config, err_tx: Sender<Error>) -> Result<Option<ReadRequest>> {
     let (tx, rx) = mpsc::channel::<(Vec<u8>, String)>(512);
     let (digest_tx, digest_rx) = mpsc::channel::<UpdateDigestRequest>(512);
 
     let reader = Reader::new(cfg, tx, digest_rx, err_tx)?;
     if reader.is_none() {
-        return Ok(ReadRequest {
-            data_rx: rx,
-            digest_tx,
-        });
+        return Ok(None);
     }
 
     let mut reader = reader.unwrap();
     tokio::spawn(async move { reader.run().await });
 
-    Ok(ReadRequest {
+    Ok(Some(ReadRequest {
         data_rx: rx,
         digest_tx,
-    })
+    }))
 }
 
 struct Reader {
@@ -145,6 +142,7 @@ impl Reader {
         if digest == self.digest {
             return;
         }
+        self.digest = digest.clone();
 
         self.tx.send((data, digest)).await.unwrap();
     }

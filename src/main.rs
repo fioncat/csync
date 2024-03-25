@@ -6,11 +6,10 @@ mod net;
 mod sync;
 mod utils;
 
-use std::{env, process};
+use std::env;
 
 use anyhow::{bail, Result};
 use clap::Parser;
-use log::error;
 
 use crate::cmd::App;
 use crate::net::client::{SendClient, WatchClient};
@@ -104,7 +103,8 @@ async fn _debug_watch(args: Vec<String>, password: Option<&str>) -> Result<()> {
     }
 }
 
-async fn _main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     init_log();
 
     let args: Vec<_> = env::args().collect();
@@ -116,14 +116,4 @@ async fn _main() -> Result<()> {
 
     let app = App::parse();
     app.run().await
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    if let Err(err) = _main().await {
-        error!("Fatal: {:#}", err);
-        process::exit(1);
-    }
-
-    Ok(())
 }

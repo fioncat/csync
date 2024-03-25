@@ -23,8 +23,6 @@ pub(super) fn start(cfg: &mut Config, err_tx: Sender<Error>) -> Result<Sender<Da
 struct Writer {
     cfg: WriteConfig,
 
-    digest: String,
-
     rx: Receiver<DataFrame>,
     err_tx: Sender<Error>,
 
@@ -50,7 +48,6 @@ impl Writer {
 
         Ok(Self {
             cfg: write_cfg,
-            digest: String::new(),
             rx,
             err_tx,
             image_path,
@@ -71,7 +68,6 @@ impl Writer {
             if frame.info.file.is_some() {
                 if let Err(err) = self.handle_file(frame) {
                     self.err_tx.send(err).await.unwrap();
-                    return;
                 }
                 continue;
             }
@@ -80,7 +76,6 @@ impl Writer {
             if is_image {
                 if let Err(err) = self.handle_image(frame) {
                     self.err_tx.send(err).await.unwrap();
-                    return;
                 }
                 continue;
             }
