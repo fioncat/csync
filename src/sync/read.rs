@@ -142,15 +142,16 @@ impl Reader {
 
         let digest = utils::get_digest(&data);
         if let Some(dirty_digest) = self.dirty_digest.as_ref() {
-            if dirty_digest == &digest {
-                self.dirty_digest = None;
+            if dirty_digest == digest.as_str() {
                 return;
             }
         }
+
         if digest == self.digest {
             return;
         }
         self.digest = digest.clone();
+        self.dirty_digest = None;
 
         self.tx.send((data, digest)).await.unwrap();
     }

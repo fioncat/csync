@@ -5,5 +5,9 @@ password = "test password 123"
 watch = ["device-1"]
 
 [read]
-cmd = ["wl-paste"]
+cmd = ["wl-paste", "--no-newline"]
 interval = 200
+
+[write]
+text_cmd = ["wl-copy"]
+download_image = true
