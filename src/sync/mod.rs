@@ -1,3 +1,8 @@
+pub mod notify;
+
+mod read;
+mod write;
+
 use anyhow::{bail, Context, Error, Result};
 use tokio::net::TcpStream;
 use tokio::select;
@@ -6,9 +11,6 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use crate::config::Config;
 use crate::net::client::{SendClient, WatchClient};
 use crate::net::frame::{DataFrame, DataFrameInfo};
-
-mod read;
-mod write;
 
 pub async fn start(mut cfg: Config) -> Result<()> {
     let (err_tx, mut err_rx) = mpsc::channel::<Error>(512);

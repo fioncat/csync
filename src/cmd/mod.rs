@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod notify;
 mod send;
 mod serve;
 mod watch;
@@ -14,6 +15,7 @@ pub struct App {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    Notify(notify::NotifyArgs),
     Send(send::SendArgs),
     Serve(serve::ServeArgs),
     Watch(watch::WatchArgs),
@@ -22,6 +24,7 @@ pub enum Commands {
 impl App {
     pub async fn run(&self) -> Result<()> {
         match &self.commands {
+            Commands::Notify(args) => args.run().await,
             Commands::Send(args) => args.run().await,
             Commands::Serve(args) => args.run().await,
             Commands::Watch(args) => args.run().await,

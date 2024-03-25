@@ -8,6 +8,7 @@ use tokio::sync::oneshot;
 use tokio::time::{self, Instant};
 
 use crate::config::{Config, ReadConfig};
+use crate::sync::notify;
 use crate::utils::{self, Cmd};
 
 pub(super) struct ReadRequest {
@@ -120,12 +121,19 @@ impl Reader {
     async fn handle_read(&mut self) {
         let result = if self.cfg.notify {
             let path = self.notify_path.as_ref().unwrap();
-            utils::read_filelock(path).context("read notify file")
+            notify::read(path)
         } else {
             if self.cfg.cmd.is_empty() {
                 unreachable!("this check should be done in Config::validate");
             }
-            Cmd::new(&self.cfg.cmd, None, true).execute()
+            let result = Cmd::new(&self.cfg.cmd, None, true)
+                .execute()
+                .context("execute read command");
+            if result.is_err() && self.cfg.allow_cmd_failure {
+                Ok(None)
+            } else {
+                result
+            }
         };
         if let Err(err) = result {
             self.err_tx.send(err).await.unwrap();

@@ -39,6 +39,9 @@ pub struct ReadConfig {
 
     #[serde(default = "defaults::disable")]
     pub notify: bool,
+
+    #[serde(default = "defaults::disable")]
+    pub allow_cmd_failure: bool,
 }
 
 #[derive(Debug, Deserialize)]

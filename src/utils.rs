@@ -6,7 +6,6 @@ use std::process::Stdio;
 
 use anyhow::bail;
 use anyhow::{Context, Result};
-use file_lock::FileLock;
 use log::info;
 use sha2::{Digest, Sha256};
 
@@ -147,41 +146,4 @@ pub fn shellexpand(s: impl AsRef<str>) -> Result<String> {
     shellexpand::full(s.as_ref())
         .with_context(|| format!("expand env for '{}'", s.as_ref()))
         .map(|s| s.into_owned())
-}
-
-pub fn write_filelock<P: AsRef<Path>>(path: P, data: &[u8]) -> Result<()> {
-    let opts = file_lock::FileOptions::new()
-        .read(true)
-        .write(true)
-        .create(true);
-
-    let mut filelock = FileLock::lock(path.as_ref(), true, opts)
-        .with_context(|| format!("open file to write '{}'", path.as_ref().display()))?;
-
-    filelock
-        .file
-        .write_all(data)
-        .with_context(|| format!("write data to file '{}'", path.as_ref().display()))?;
-
-    Ok(())
-}
-
-pub fn read_filelock<P: AsRef<Path>>(path: P) -> Result<Option<Vec<u8>>> {
-    let opts = file_lock::FileOptions::new().read(true).write(true);
-
-    let mut filelock = match FileLock::lock(path.as_ref(), true, opts) {
-        Ok(filelock) => filelock,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => {
-            return Err(err)
-                .with_context(|| format!("open file to read '{}'", path.as_ref().display()))
-        }
-    };
-    let mut data = Vec::new();
-    filelock
-        .file
-        .read_to_end(&mut data)
-        .with_context(|| format!("read file '{}'", path.as_ref().display()))?;
-
-    Ok(Some(data))
 }
