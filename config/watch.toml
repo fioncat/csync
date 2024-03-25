@@ -1,4 +1,0 @@
-server = "127.0.0.1:7703"
-watch = ["test01", "test02"]
-download_dir = "./_test_data/download"
-password = "test password 123"

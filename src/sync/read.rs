@@ -60,6 +60,7 @@ struct Reader {
     cfg: ReadConfig,
 
     digest: String,
+    dirty_digest: Option<String>,
 
     notify_path: Option<PathBuf>,
 
@@ -90,6 +91,7 @@ impl Reader {
         Ok(Some(Self {
             cfg: read_cfg,
             digest: String::new(),
+            dirty_digest: None,
             notify_path,
             tx,
             digest_rx,
@@ -139,6 +141,12 @@ impl Reader {
         }
 
         let digest = utils::get_digest(&data);
+        if let Some(dirty_digest) = self.dirty_digest.as_ref() {
+            if dirty_digest == &digest {
+                self.dirty_digest = None;
+                return;
+            }
+        }
         if digest == self.digest {
             return;
         }
@@ -149,7 +157,7 @@ impl Reader {
 
     async fn handle_update_digest(&mut self, req: UpdateDigestRequest) {
         let UpdateDigestRequest { digest, resp } = req;
-        self.digest = digest;
+        self.dirty_digest = Some(digest);
         resp.send(()).unwrap();
     }
 }

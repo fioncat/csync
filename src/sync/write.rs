@@ -79,6 +79,10 @@ impl Writer {
                 }
                 continue;
             }
+
+            if let Err(err) = self.handle_text(frame) {
+                self.err_tx.send(err).await.unwrap();
+            }
         }
     }
 
