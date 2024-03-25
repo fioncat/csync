@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Error, Result};
+use tokio::select;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::time::{self, Instant};
@@ -9,25 +10,53 @@ use tokio::time::{self, Instant};
 use crate::config::{Config, ReadConfig};
 use crate::utils::{self, Cmd};
 
-struct ReadController {}
+pub(super) struct ReadRequest {
+    data_rx: Receiver<(Vec<u8>, String)>,
+    digest_tx: Sender<UpdateDigestRequest>,
+}
 
 struct UpdateDigestRequest {
     digest: String,
+
+    resp: oneshot::Sender<()>,
 }
 
-fn start(cfg: &mut Config, err_tx: Sender<Error>) -> Result<Receiver<(Vec<u8>, String)>> {
+impl ReadRequest {
+    pub(super) async fn recv_data(&mut self) -> Option<(Vec<u8>, String)> {
+        self.data_rx.recv().await
+    }
+
+    pub(super) async fn update_digest(&mut self, digest: String) {
+        let (resp_tx, resp_rx) = oneshot::channel::<()>();
+        let req = UpdateDigestRequest {
+            digest,
+            resp: resp_tx,
+        };
+
+        self.digest_tx.send(req).await.unwrap();
+        resp_rx.await.unwrap();
+    }
+}
+
+pub(super) fn start(cfg: &mut Config, err_tx: Sender<Error>) -> Result<ReadRequest> {
     let (tx, rx) = mpsc::channel::<(Vec<u8>, String)>(512);
-    let (digest_tx, digest_rx) = mpsc::channel::<String>(512);
+    let (digest_tx, digest_rx) = mpsc::channel::<UpdateDigestRequest>(512);
 
     let reader = Reader::new(cfg, tx, digest_rx, err_tx)?;
     if reader.is_none() {
-        return Ok(rx);
+        return Ok(ReadRequest {
+            data_rx: rx,
+            digest_tx,
+        });
     }
 
     let mut reader = reader.unwrap();
     tokio::spawn(async move { reader.run().await });
 
-    Ok(rx)
+    Ok(ReadRequest {
+        data_rx: rx,
+        digest_tx,
+    })
 }
 
 struct Reader {
@@ -38,7 +67,7 @@ struct Reader {
     notify_path: Option<PathBuf>,
 
     tx: Sender<(Vec<u8>, String)>,
-    digest_rx: Receiver<String>,
+    digest_rx: Receiver<UpdateDigestRequest>,
     err_tx: Sender<Error>,
 }
 
@@ -46,7 +75,7 @@ impl Reader {
     fn new(
         cfg: &mut Config,
         tx: Sender<(Vec<u8>, String)>,
-        digest_rx: Receiver<String>,
+        digest_rx: Receiver<UpdateDigestRequest>,
         err_tx: Sender<Error>,
     ) -> Result<Option<Self>> {
         let read_cfg = cfg.read.take();
@@ -78,36 +107,51 @@ impl Reader {
         );
 
         loop {
-            intv.tick().await;
-
-            let result = if self.cfg.notify {
-                let path = self.notify_path.as_ref().unwrap();
-                utils::read_filelock(path).context("read notify file")
-            } else {
-                if self.cfg.cmd.is_empty() {
-                    unreachable!("this check should be done in Config::validate");
-                }
-                Cmd::new(&self.cfg.cmd, None, true).execute()
-            };
-            if let Err(err) = result {
-                self.err_tx.send(err).await.unwrap();
-                return;
+            select! {
+                _ = intv.tick() => {
+                    self.handle_read().await;
+                },
+                Some(req) = self.digest_rx.recv() => {
+                    self.handle_update_digest(req).await;
+                },
             }
-            let data = result.unwrap();
-            if data.is_none() {
-                continue;
-            }
-            let data = data.unwrap();
-            if data.is_empty() {
-                continue;
-            }
-
-            let digest = utils::get_digest(&data);
-            if digest == self.digest {
-                continue;
-            }
-
-            self.tx.send((data, digest)).await.unwrap();
         }
+    }
+
+    async fn handle_read(&mut self) {
+        let result = if self.cfg.notify {
+            let path = self.notify_path.as_ref().unwrap();
+            utils::read_filelock(path).context("read notify file")
+        } else {
+            if self.cfg.cmd.is_empty() {
+                unreachable!("this check should be done in Config::validate");
+            }
+            Cmd::new(&self.cfg.cmd, None, true).execute()
+        };
+        if let Err(err) = result {
+            self.err_tx.send(err).await.unwrap();
+            return;
+        }
+        let data = result.unwrap();
+        if data.is_none() {
+            return;
+        }
+        let data = data.unwrap();
+        if data.is_empty() {
+            return;
+        }
+
+        let digest = utils::get_digest(&data);
+        if digest == self.digest {
+            return;
+        }
+
+        self.tx.send((data, digest)).await.unwrap();
+    }
+
+    async fn handle_update_digest(&mut self, req: UpdateDigestRequest) {
+        let UpdateDigestRequest { digest, resp } = req;
+        self.digest = digest;
+        resp.send(()).unwrap();
     }
 }

@@ -23,6 +23,8 @@ pub struct Config {
     #[serde(default = "defaults::work_dir")]
     pub work_dir: String,
 
+    pub password: Option<String>,
+
     pub read: Option<ReadConfig>,
     pub write: Option<WriteConfig>,
 }
@@ -118,6 +120,7 @@ impl Config {
             device: defaults::device(),
             watch: defaults::empty_vec(),
             work_dir: defaults::work_dir(),
+            password: None,
             read: None,
             write: None,
         }
