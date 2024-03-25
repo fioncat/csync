@@ -1,12 +1,10 @@
-#![allow(dead_code)]
-
 mod cmd;
 mod config;
 mod net;
 mod sync;
 mod utils;
 
-use std::env;
+use std::{env, process};
 
 use anyhow::{bail, Result};
 use clap::Parser;
@@ -103,8 +101,7 @@ async fn _debug_watch(args: Vec<String>, password: Option<&str>) -> Result<()> {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+async fn _main() -> Result<()> {
     init_log();
 
     let args: Vec<_> = env::args().collect();
@@ -116,4 +113,12 @@ async fn main() -> Result<()> {
 
     let app = App::parse();
     app.run().await
+}
+
+#[tokio::main]
+async fn main() {
+    if let Err(err) = _main().await {
+        eprintln!("Error: {:#}", err);
+        process::exit(1);
+    }
 }
