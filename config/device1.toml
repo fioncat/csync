@@ -1,9 +1,0 @@
-server = "127.0.0.1:7703"
-device = "device-1"
-password = "test password 123"
-
-watch = ["device-0"]
-
-[read]
-notify = true
-interval = 200

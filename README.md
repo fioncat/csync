@@ -40,7 +40,7 @@ Arguements:
 Add a csync config file `~/.config/csync.toml`:
 
 <details>
-<summary>Linux on Wayland</summary>
+<summary>Linux (Wayland)</summary>
 
 Require package `wl-clipboard`.
 
@@ -66,6 +66,31 @@ Run the following command to watch clipboard events and notify them to csync:
 
 ```bash
 wl-paste --no-newline --watch csync notify
+```
+
+</details>
+
+<details>
+<summary>Linux (X11)</summary>
+
+Require package `xclip`.
+
+```toml
+# ~/.config/csync.toml
+
+server = "127.0.0.1:7703"  # The server address
+device = "test-device"     # The current device name, should be unique
+password = "test password" # The server password
+
+watch = ["ucloud-mac"]  # The other devices to watch
+
+[read]
+cmd = ["xclip", "-o"]
+interval = 200
+
+[write]
+text_cmd = ["xclip"]
+download_image = true
 ```
 
 </details>
@@ -114,3 +139,8 @@ csync send -f /path/to/file
 - [tokio-miniredis](https://github.com/tokio-rs/mini-redis): I referd to its tcp stream IO logic and protocol implement.
 - [arboard](https://github.com/1Password/arboard): Although I use external programs to interact with clipboard, but `arboard` is still a good cross-platform library to call clipboard using Rust. But sadly it does not support Wayland natively.
 - [clipboard-master](https://github.com/DoumanAsh/clipboard-master): Together with `arboard`, this is usually used to monitor clipboard events. But I still did not use this in csync since it does not support Wayland natively.
+
+## TODOList
+
+- [ ] Support Windows
+- [ ] Better image support
