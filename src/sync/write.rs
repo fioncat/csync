@@ -56,8 +56,7 @@ impl Writer {
     }
 
     async fn run(&mut self) {
-        loop {
-            let frame = self.rx.recv().await.unwrap();
+        while let Some(frame) = self.rx.recv().await {
             println!();
             println!(
                 "[From device {:?}: {} data]",

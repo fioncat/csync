@@ -20,8 +20,7 @@ pub(super) fn empty_vec() -> Vec<String> {
 }
 
 pub(super) fn work_dir() -> String {
-    // TODO: Support Windows?
-    String::from("~/Downloads/csync")
+    String::from("~/csync")
 }
 
 pub(super) fn read_interval() -> u32 {
