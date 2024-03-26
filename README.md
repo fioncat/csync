@@ -3,8 +3,6 @@
 `csync` is a simple tool to share your clipboard between different devices
 </div>
 
----
-
 Csync offers an easy CLI to share your clipboard between different devices. This is done through network, you should prepare a server that all your devices can access it.
 
 Csync is written by Rust and it is very fast and lightweight!
@@ -25,7 +23,7 @@ cargo install --git https://github.com/fioncat/csync
 
 ## Usage
 
-## Prepare a server
+#### Prepare a server
 
 You need to prepare a server that all devices can access to perform data exchange. Run the following command in your server:
 
@@ -38,7 +36,7 @@ Arguements:
 - `--bind`: The server bind address, default is `0.0.0.0:7703`.
 - `--password`: Optional, if provided, all data will be encrypted using [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard). Your clipboard data will be safety exchanged in network. The client should configure the same password otherwise it won't be able to send or receive data from server.
 
-## Sync clipboard in device
+#### Sync clipboard in device
 
 Add a csync config file `~/.config/csync.toml`:
 
