@@ -144,5 +144,6 @@ csync send -f /path/to/file
 
 ## TODOList
 
+- [ ] Better docs
 - [ ] Support Windows
 - [ ] Better image support

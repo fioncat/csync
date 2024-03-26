@@ -1,7 +1,14 @@
 [package]
 name = "csync"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
+build = "build.rs"
+license = "MIT"
+authors = ["fioncat"]
+categories = ["command-line-utilities"]
+readme = "README.md"
+repository = "https://github.com/fioncat/csync"
+description = "Share your clipboard between different devices"
 
 [dependencies]
 aes-gcm = "0.10.3"
