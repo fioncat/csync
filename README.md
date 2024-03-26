@@ -30,6 +30,8 @@ You need to prepare a server that all devices can access to perform data exchang
 csync serve --bind "<bind-addr>" --password "<your-password>"
 ```
 
+> You can also run the server with docker: `docker run -e 7703:7703 fioncat/csync:latest --password <your-password>`.
+
 Arguements:
 
 - `--bind`: The server bind address, default is `0.0.0.0:7703`.
