@@ -1,7 +1,8 @@
 <div align="center">
 <h1>📄 csync</h1>
-`csync` is a simple tool to share your clipboard between different devices
 </div>
+
+---
 
 Csync offers an easy CLI to share your clipboard between different devices. This is done through network, you should prepare a server that all your devices can access it.
 
@@ -55,7 +56,6 @@ password = "test password" # The server password
 watch = ["ucloud-mac"]  # The other devices to watch
 
 [read]
-# wl-paste --no-newline --watch csync notify
 notify = true
 interval = 200
 
@@ -64,7 +64,7 @@ text_cmd = ["wl-copy"]
 download_image = true
 ```
 
-Run the following command:
+Run the following command to watch clipboard events and notify them to csync:
 
 ```bash
 wl-paste --no-newline --watch csync notify
