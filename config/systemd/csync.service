@@ -1,0 +1,16 @@
+# ~/.config/systemd/user/csync.service
+
+[Unit]
+Description=Clipboard sync
+Documentation=https://github.com/fioncat/csync
+After=network.target
+
+[Service]
+ExecStart=%h/.cargo/bin/csync watch
+Restart=always
+RestartSec=3
+StartLimitInterval=0
+KillMode=process
+
+[Install]
+WantedBy=default.target

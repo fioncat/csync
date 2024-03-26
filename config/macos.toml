@@ -1,0 +1,15 @@
+# ~/.config/csync.toml
+
+server = "127.0.0.1:7703"  # The server address
+device = "test-device"     # The current device name, should be unique
+password = "test password" # The server password
+
+watch = ["ucloud-mac"]  # The other devices to watch
+
+[read]
+cmd = ["pbpaste"]
+interval = 200
+
+[write]
+text_cmd = ["pbcopy"]
+download_image = true

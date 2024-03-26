@@ -1,180 +1,149 @@
-# Csync - Share your clipboard easily
+<div align="center">
+<h1>📄 Csync</h1>
+</div>
 
-Csync is a simple network-based cross-device clipboard synchronization tool. It facilitates clipboard synchronization (both text and image are supported) among different platforms (support MacOS, Linux, and Windows). Csync does not require direct network communication between these devices but mandates their ability to access a shared csyncd server for data exchange.
+Csync offers an easy CLI to share your clipboard between different devices. This is done through network, you should prepare a server that all your devices can access it.
 
-To ensure privacy, csync supports encrypting your clipboard data with a password. For details on encryption and security considerations, please refer to [SECURITY.md](SECURITY.md). It is strongly recommended to carefully read its contents before using csync.
+Csync is written by Rust, it is very fast and lightweight!
 
-## Install csyncd
+---
 
-You need to prepare a server to deploy csyncd, which is used for exchanging clipboard data between different devices. All devices should be able to access this server.
+## Installation
 
-Somethings to know before your starting:
+#### Download from release
 
-- If you deploy csyncd on public, clipboard data will be transmitted over the public network. Make sure csyncd is configured with a password to prevent privacy leaks.
-- csyncd does not store data on the disk but rather in memory. If you restart csyncd, some unsynchronized data may be lost.
-- csyncd does not support distributed deployment and can only be deployed as a single instance.
+You can find all bianry files from [GitHub Release Page](https://github.com/fioncat/csync/releases).
 
-csyncd exposes its service on port 7703. I provide various deployment methods, with Docker being the recommended choice.
-
-<details>
-<summary>Docker</summary>
-
-Run the command:
+#### Use Cargo to install it
 
 ```bash
-docker run -e 7703:7703 fioncat/csyncd:latest --password <your-password>
+cargo install --git https://github.com/fioncat/csync
+```
+
+## Usage
+
+#### Prepare a server
+
+You need to prepare a server that all devices can access to perform data exchange. Run the following command in your server:
+
+```bash
+csync serve --bind "<bind-addr>" --password "<your-password>"
+```
+
+> You can also run the server with docker: `docker run -e 7703:7703 fioncat/csync:latest --password <your-password>`.
+
+Arguements:
+
+- `--bind`: The server bind address, default is `0.0.0.0:7703`.
+- `--password`: Optional, if provided, all data will be encrypted using [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard). Your clipboard data will be safety exchanged in network. The client should configure the same password otherwise it won't be able to send or receive data from server.
+
+#### Sync clipboard in device
+
+Add a csync config file `~/.config/csync.toml`:
+
+<details>
+<summary>Linux (Wayland)</summary>
+
+Require package `wl-clipboard`.
+
+```toml
+# ~/.config/csync.toml
+
+server = "127.0.0.1:7703"  # The server address
+device = "test-device"     # The current device name, should be unique
+password = "test password" # The server password
+
+watch = ["ucloud-mac"]  # The other devices to watch
+
+[read]
+notify = true
+interval = 200
+
+[write]
+text_cmd = ["wl-copy"]
+download_image = true
+```
+
+Run the following command to watch clipboard events and notify them to csync:
+
+```bash
+wl-paste --no-newline --watch csync notify
 ```
 
 </details>
 
 <details>
-<summary>k8s</summary>
+<summary>Linux (X11)</summary>
 
-You can apply [csyncd/k8s.yml](csyncd/k8s.yml) file.
+Require package `xclip`.
 
-Download the yaml file:
+```toml
+# ~/.config/csync.toml
 
-```bash
-curl -sSL https://raw.githubusercontent.com/fioncat/csync/main/csyncd/k8s.yml > csyncd-k8s.yml
-```
+server = "127.0.0.1:7703"  # The server address
+device = "test-device"     # The current device name, should be unique
+password = "test password" # The server password
 
-Replace the default password:
+watch = ["ucloud-mac"]  # The other devices to watch
 
-```bash
-sed -i 's/test123/<your-password>' csyncd-k8s.yml
-```
+[read]
+cmd = ["xclip", "-o"]
+interval = 200
 
-Deploy to k8s:
-
-```bash
-kubectl -n <your-namespace> apply -f csyncd-k8s.yml
-```
-
-We use [Service](https://kubernetes.io/docs/concepts/services-networking/service/) to expose csyncd, you can use k8s DNS address `<namespace>.csyncd.<cluster>`, or [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/cluster-ip-allocation/) to access csyncd.
-
-By default, you can only access csyncd within the cluster. If you wish to expose the service externally, you may need to use [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) or [LoadBalancer Service](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/).
-
-</details>
-
-<details>
-<summary>systemd</summary>
-
-The most traditional deployment method, suitable for various Linux distributions that support systemd.
-
-First, download the latest version of the csyncd binary file from the [release page](https://github.com/fioncat/csync/releases/latest) and copy the file to `/usr/local/bin`.
-
-Use the command to ensure the csyncd version:
-
-```bash
-csyncd --build-info
-```
-
-Download systemd service file:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/fioncat/csync/main/csyncd/csyncd.service > /lib/systemd/system/csyncd.service
-```
-
-Replace password:
-
-```bash
-sed -i 's/test123/<your-password>' /lib/systemd/system/csyncd.service
-```
-
-Start the serivce:
-
-```bash
-systemctl daemon-reload
-systemctl start csyncd
-```
-
-</details>
-
-
-## Install csync
-
-csync is used to interact with csyncd to retrieve clipboard data from other devices and synchronize the data to the clipboard of the current device.
-
-csync operates on a publish/subscribe model. It can publish the clipboard of the current device or subscribe to the clipboard of other devices at the same time.
-
-For example, consider two devices, `a` and `b`. Device `a` publishes its clipboard to `channel a` and subscribes to `channel b`; device `b` publishes its clipboard to `channel b` and subscribes to `channel a`. This way, clipboard sharing is achieved between the two devices.
-
-If you have more devices, you can share the clipboard on additional channels and simultaneously subscribe to multiple channels.
-
-You can even choose to only publish, not subscribe, to achieve `write_only`; or only subscribe, not publish, to achieve `read_only`.
-
-Please download csync from the [release page](https://github.com/fioncat/csync/releases/latest).
-
-The basic usage:
-
-```bash
-csync <publish-name>@<csyncd-addr>/<sub-0>,<sub-1>,...
-```
-
-Arguments:
-
-- `<publish-name>`: The channel name to publish current device's clipboard.
-- `<csyncd-addr>`: The csyncd address (not include port, if you want to set port, please use `-p` flag).
-- `<sub0>,<sub-1>,...`: The subcribe channel(s), can be multiple.
-
-If your csyncd is configured with a password, before initiating synchronization, csync will prompt you to enter the password for authentication.
-
-Assuming you have a MacBook device and a Linux host, and you have deployed a csyncd on the local network with the address `192.168.12.32`.
-
-If you want to share the clipboard of the two devices, you can run the following command in Linux:
-
-```bash
-csync linux@192.168.12.32/mac
-```
-
-Run the following command in Mac:
-
-```bash
-csync mac@192.168.12.32/linux
-```
-
-Now, the text/image copied in one device will be synchronize to another device automatically.
-
-## Build from source
-
-You can build csync from source, this require Rust 1.75+ installed.
-
-If you are using Linux without `x11`, you might need to install [xcb](https://xcb.freedesktop.org/) manually:
-
-<details>
-<summary>ArchLinux</summary>
-
-```bash
-sudo pacman -S libxcb lib32-libxcb xcb-util	lib32-xcb-util
+[write]
+text_cmd = ["xclip"]
+download_image = true
 ```
 
 </details>
 
 <details>
-<summary>Ubuntu</summary>
+<summary>MacOS</summary>
 
-```bash
-sudo apt-get install libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+```toml
+# ~/.config/csync.toml
+
+server = "127.0.0.1:7703"  # The server address
+device = "test-device"     # The current device name, should be unique
+password = "test password" # The server password
+
+watch = ["ucloud-mac"]  # The other devices to watch
+
+[read]
+cmd = ["pbpaste"]
+interval = 200
+
+[write]
+text_cmd = ["pbcopy"]
+download_image = true
 ```
 
 </details>
 
-Build all:
+Run the following command to start syncing:
 
 ```bash
-git clone https://github.com/fioncat/csync.git /path/to/csync
-cd /path/to/csync
-cargo build --release --locked
+csync watch
 ```
 
-Install csync:
+You can manually send something to other devices:
 
 ```bash
-cargo install --git https://github.com/fioncat/csync csync
+csync send "Some text"
+csync send -f /path/to/file
 ```
 
-Install csyncd:
+---
 
-```bash
-cargo install --git https://github.com/fioncat/csync csyncd
-```
+## Special thanks
+
+- [tokio](https://github.com/tokio-rs/tokio): The basic async runtime and network framework.
+- [tokio-miniredis](https://github.com/tokio-rs/mini-redis): I referd to its tcp stream IO logic and protocol implement.
+- [arboard](https://github.com/1Password/arboard): Although I use external programs to interact with clipboard, but `arboard` is still a good cross-platform library to call clipboard using Rust. But sadly it does not support Wayland natively.
+- [clipboard-master](https://github.com/DoumanAsh/clipboard-master): Together with `arboard`, this is usually used to monitor clipboard events. But I still did not use this in csync since it does not support Wayland natively.
+
+## TODOList
+
+- [ ] Better docs
+- [ ] Support Windows
+- [ ] Better image support
