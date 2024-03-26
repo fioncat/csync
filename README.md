@@ -2,8 +2,6 @@
 <h1>📄 csync</h1>
 </div>
 
----
-
 Csync offers an easy CLI to share your clipboard between different devices. This is done through network, you should prepare a server that all your devices can access it.
 
 Csync is written by Rust and it is very fast and lightweight!
