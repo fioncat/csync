@@ -4,7 +4,7 @@
 
 Csync offers an easy CLI to share your clipboard between different devices. This is done through network, you should prepare a server that all your devices can access it.
 
-Csync is written by Rust and it is very fast and lightweight!
+Csync is written by Rust, it is very fast and lightweight!
 
 ---
 
