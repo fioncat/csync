@@ -56,18 +56,13 @@ password = "test password" # The server password
 watch = ["ucloud-mac"]  # The other devices to watch
 
 [read]
-notify = true
+cmd = ["wl-paste", "--no-newline"]
 interval = 200
+allow_cmd_failure = true
 
 [write]
 text_cmd = ["wl-copy"]
 download_image = true
-```
-
-Run the following command to watch clipboard events and notify them to csync:
-
-```bash
-wl-paste --no-newline --watch csync notify
 ```
 
 </details>

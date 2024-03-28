@@ -93,7 +93,8 @@ impl<S: AsyncWrite + AsyncRead + Unpin + Send + 'static> Client<S> {
         tokio::spawn(async move {
             let mut conn = conn.lock().await;
             let result = Self::_send(&mut conn, data).await;
-            done_tx.send(result).unwrap();
+            // We ignore error here to avoid panic after timeout
+            let _ = done_tx.send(result);
         });
 
         match time::timeout_at(Instant::now() + Duration::from_secs(1), done_rx).await {
