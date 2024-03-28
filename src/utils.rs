@@ -1,4 +1,5 @@
 use std::fs;
+use std::future::Future;
 use std::io;
 use std::path::Path;
 use std::process::Stdio;
@@ -10,7 +11,7 @@ use log::info;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
-use tokio::time::{self, Instant};
+use tokio::time::{self, Instant, Timeout};
 
 pub fn ensure_dir<P: AsRef<Path>>(dir: P) -> Result<()> {
     match fs::read_dir(dir.as_ref()) {
@@ -104,11 +105,21 @@ impl Cmd {
 
         let mut stdout = child.stdout.take();
 
-        let status =
-            match time::timeout_at(Instant::now() + Duration::from_secs(1), child.wait()).await {
-                Ok(result) => result.context("wait command exit")?,
-                Err(_) => bail!("execute command timeout after 1s"),
-            };
+        let status = match with_timeout(child.wait()).await {
+            Ok(result) => result.context("wait command exit")?,
+            Err(_) => {
+                // The command hang, try to kill it to avoid leakage. The kill also has a
+                // timeout.
+                if with_timeout(child.kill()).await.is_err() {
+                    // Kill failed, the child process is completely blocked now and cannot
+                    // handle kill signal. We donot known how to handle this, report the
+                    // warning message. Let user to handle this.
+                    let id = child.id().unwrap_or(0);
+                    println!("WARN: Failed to kill child process {id} after timeout, process leakage may appear, please be attention");
+                }
+                bail!("execute command timeout after 1s");
+            }
+        };
         let output = match stdout.as_mut() {
             Some(stdout) => {
                 let mut out = Vec::new();
@@ -144,4 +155,13 @@ pub fn shellexpand(s: impl AsRef<str>) -> Result<String> {
     shellexpand::full(s.as_ref())
         .with_context(|| format!("expand env for '{}'", s.as_ref()))
         .map(|s| s.into_owned())
+}
+
+/// Every long operations should have an 1s timeout.
+#[inline]
+pub fn with_timeout<F>(future: F) -> Timeout<F>
+where
+    F: Future,
+{
+    time::timeout_at(Instant::now() + Duration::from_secs(1), future)
 }
