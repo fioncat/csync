@@ -7,17 +7,21 @@ pub use watch::WatchClient;
 use std::borrow::Cow;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{lookup_host, TcpSocket, TcpStream};
+use tokio::sync::oneshot;
+use tokio::sync::Mutex;
+use tokio::time::{self, Instant};
 
 use crate::net::auth::Auth;
 use crate::net::conn::Connection;
 use crate::net::frame::{self, DataFrame, Frame};
 
-struct Client<S: AsyncWrite + AsyncRead + Unpin> {
-    conn: Connection<S>,
+struct Client<S: AsyncWrite + AsyncRead + Unpin + Send> {
+    conn: Arc<Mutex<Connection<S>>>,
 }
 
 impl Client<TcpStream> {
@@ -43,7 +47,7 @@ impl Client<TcpStream> {
     }
 }
 
-impl<S: AsyncWrite + AsyncRead + Unpin> Client<S> {
+impl<S: AsyncWrite + AsyncRead + Unpin + Send + 'static> Client<S> {
     async fn new<P>(mut conn: Connection<S>, head: &Frame<'_>, password: Option<P>) -> Result<Self>
     where
         P: AsRef<str>,
@@ -78,18 +82,33 @@ impl<S: AsyncWrite + AsyncRead + Unpin> Client<S> {
             conn.with_auth(Arc::new(Some(auth)));
         }
 
-        Ok(Self { conn })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
-    async fn send(&mut self, data: &DataFrame) -> Result<()> {
-        let frame = Frame::Data(Cow::Borrowed(data));
-        self.conn
-            .write_frame(&frame)
-            .await
-            .context("send data frame")?;
+    async fn send(&mut self, data: Arc<DataFrame>) -> Result<()> {
+        let conn = Arc::clone(&self.conn);
+        let (done_tx, done_rx) = oneshot::channel::<Result<()>>();
+        tokio::spawn(async move {
+            let mut conn = conn.lock().await;
+            let result = Self::_send(&mut conn, data).await;
+            done_tx.send(result).unwrap();
+        });
 
-        self.conn
-            .must_read_frame()
+        match time::timeout_at(Instant::now() + Duration::from_secs(1), done_rx).await {
+            Ok(result) => result.unwrap(),
+            Err(_) => bail!("send data timeout after 1s"),
+        }
+    }
+
+    #[inline]
+    async fn _send(conn: &mut Connection<S>, data: Arc<DataFrame>) -> Result<()> {
+        let frame = Frame::Data(Cow::Borrowed(data.as_ref()));
+
+        conn.write_frame(&frame).await.context("send data frame")?;
+
+        conn.must_read_frame()
             .await
             .context("read data frame resp")?
             .expect_ok()?;
@@ -99,11 +118,8 @@ impl<S: AsyncWrite + AsyncRead + Unpin> Client<S> {
 
     async fn recv(&mut self) -> Result<DataFrame> {
         loop {
-            let frame = self
-                .conn
-                .must_read_frame()
-                .await
-                .context("recv data frame")?;
+            let mut conn = self.conn.lock().await;
+            let frame = conn.must_read_frame().await.context("recv data frame")?;
             if Frame::Ping == frame {
                 continue;
             }

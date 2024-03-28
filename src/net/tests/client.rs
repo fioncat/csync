@@ -67,7 +67,7 @@ async fn _test_send_client(name: &str, auth: Option<Auth>, password: Option<&str
     let mut client = SendClient::new(conn, "test-send", password).await.unwrap();
 
     for frame in frames {
-        client.send(&frame).await.unwrap();
+        client.send(Arc::new(frame)).await.unwrap();
     }
 
     done_rx.await.unwrap();
