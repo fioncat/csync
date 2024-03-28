@@ -128,6 +128,7 @@ impl Reader {
             }
             let result = Cmd::new(&self.cfg.cmd, None, true)
                 .execute()
+                .await
                 .context("execute read command");
             if result.is_err() && self.cfg.allow_cmd_failure {
                 Ok(None)
