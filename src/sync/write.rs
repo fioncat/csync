@@ -73,13 +73,13 @@ impl Writer {
 
             let is_image = from_utf8(&frame.body).is_err();
             if is_image {
-                if let Err(err) = self.handle_image(frame) {
+                if let Err(err) = self.handle_image(frame).await {
                     self.err_tx.send(err).await.unwrap();
                 }
                 continue;
             }
 
-            if let Err(err) = self.handle_text(frame) {
+            if let Err(err) = self.handle_text(frame).await {
                 self.err_tx.send(err).await.unwrap();
             }
         }
@@ -104,7 +104,7 @@ impl Writer {
         Ok(())
     }
 
-    fn handle_image(&mut self, frame: DataFrame) -> Result<()> {
+    async fn handle_image(&mut self, frame: DataFrame) -> Result<()> {
         if self.cfg.download_image {
             let path = self.image_path.as_ref().unwrap();
             println!("<Download image to {}>", path.display());
@@ -116,7 +116,7 @@ impl Writer {
         if !self.cfg.image_cmd.is_empty() {
             println!("<Execute image command>");
             let mut cmd = Cmd::new(&self.cfg.image_cmd, Some(frame.body), false);
-            cmd.execute().context("execute image command")?;
+            cmd.execute().await.context("execute image command")?;
             return Ok(());
         }
 
@@ -124,11 +124,11 @@ impl Writer {
         Ok(())
     }
 
-    fn handle_text(&mut self, frame: DataFrame) -> Result<()> {
+    async fn handle_text(&mut self, frame: DataFrame) -> Result<()> {
         if !self.cfg.text_cmd.is_empty() {
             println!("<Execute text command>");
             let mut cmd = Cmd::new(&self.cfg.text_cmd, Some(frame.body), false);
-            cmd.execute().context("execute text command")?;
+            cmd.execute().await.context("execute text command")?;
             return Ok(());
         }
 

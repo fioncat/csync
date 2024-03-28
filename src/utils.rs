@@ -1,13 +1,17 @@
 use std::fs;
-use std::io::{self, Read, Write};
+use std::future::Future;
+use std::io;
 use std::path::Path;
-use std::process::Command;
 use std::process::Stdio;
+use std::time::Duration;
 
 use anyhow::bail;
 use anyhow::{Context, Result};
 use log::info;
 use sha2::{Digest, Sha256};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::process::Command;
+use tokio::time::{self, Instant, Timeout};
 
 pub fn ensure_dir<P: AsRef<Path>>(dir: P) -> Result<()> {
     match fs::read_dir(dir.as_ref()) {
@@ -81,38 +85,48 @@ impl Cmd {
         Cmd { cmd, input }
     }
 
-    pub fn execute(&mut self) -> Result<Option<Vec<u8>>> {
+    pub async fn execute(&mut self) -> Result<Option<Vec<u8>>> {
         let mut child = match self.cmd.spawn() {
             Ok(child) => child,
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                bail!(
-                    "cannot find command `{}`, please make sure it is installed",
-                    self.get_name()
-                );
+                bail!("cannot find command, please make sure it is installed");
             }
-            Err(e) => {
-                return Err(e)
-                    .with_context(|| format!("cannot launch command `{}`", self.get_name()))
-            }
+            Err(e) => return Err(e).context("cannot launch command"),
         };
 
         if let Some(input) = &self.input {
             let handle = child.stdin.as_mut().unwrap();
             handle
                 .write_all(input)
-                .with_context(|| format!("write input to command `{}`", self.get_name()))?;
+                .await
+                .context("write input to command")?;
             drop(child.stdin.take());
         }
 
         let mut stdout = child.stdout.take();
 
-        let status = child.wait().context("wait command done")?;
+        let status = match with_timeout(child.wait()).await {
+            Ok(result) => result.context("wait command exit")?,
+            Err(_) => {
+                // The command hang, try to kill it to avoid leakage. The kill also has a
+                // timeout.
+                if with_timeout(child.kill()).await.is_err() {
+                    // Kill failed, the child process is completely blocked now and cannot
+                    // handle kill signal. We donot known how to handle this, report the
+                    // warning message. Let user to handle this.
+                    let id = child.id().unwrap_or(0);
+                    println!("WARN: Failed to kill child process {id} after timeout, process leakage may appear, please be attention");
+                }
+                bail!("execute command timeout after 1s");
+            }
+        };
         let output = match stdout.as_mut() {
             Some(stdout) => {
                 let mut out = Vec::new();
                 stdout
                     .read_to_end(&mut out)
-                    .with_context(|| format!("read stdout from command `{}`", self.get_name()))?;
+                    .await
+                    .context("read stdout from command")?;
                 Some(out)
             }
             None => None,
@@ -128,11 +142,6 @@ impl Cmd {
             None => bail!("command exited with unknown code"),
         }
     }
-
-    #[inline]
-    fn get_name(&self) -> &str {
-        self.cmd.get_program().to_str().unwrap_or("<unknown>")
-    }
 }
 
 pub fn get_digest(data: &[u8]) -> String {
@@ -146,4 +155,13 @@ pub fn shellexpand(s: impl AsRef<str>) -> Result<String> {
     shellexpand::full(s.as_ref())
         .with_context(|| format!("expand env for '{}'", s.as_ref()))
         .map(|s| s.into_owned())
+}
+
+/// Every long operations should have an 1s timeout.
+#[inline]
+pub fn with_timeout<F>(future: F) -> Timeout<F>
+where
+    F: Future,
+{
+    time::timeout_at(Instant::now() + Duration::from_secs(1), future)
 }

@@ -7,18 +7,17 @@ pub use watch::WatchClient;
 use std::borrow::Cow;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{lookup_host, TcpSocket, TcpStream};
 use tokio::sync::oneshot;
 use tokio::sync::Mutex;
-use tokio::time::{self, Instant};
 
 use crate::net::auth::Auth;
 use crate::net::conn::Connection;
 use crate::net::frame::{self, DataFrame, Frame};
+use crate::utils;
 
 struct Client<S: AsyncWrite + AsyncRead + Unpin + Send> {
     conn: Arc<Mutex<Connection<S>>>,
@@ -97,7 +96,7 @@ impl<S: AsyncWrite + AsyncRead + Unpin + Send + 'static> Client<S> {
             let _ = done_tx.send(result);
         });
 
-        match time::timeout_at(Instant::now() + Duration::from_secs(1), done_rx).await {
+        match utils::with_timeout(done_rx).await {
             Ok(result) => result.unwrap(),
             Err(_) => bail!("send data timeout after 1s"),
         }
