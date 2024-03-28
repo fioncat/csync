@@ -10,7 +10,7 @@ use crate::net::frame::{DataFrame, Frame};
 #[cfg(test)]
 use crate::net::conn::Connection;
 
-pub struct WatchClient<S: AsyncWrite + AsyncRead + Unpin>(Client<S>);
+pub struct WatchClient<S: AsyncWrite + AsyncRead + Unpin + Send + 'static>(Client<S>);
 
 impl WatchClient<TcpStream> {
     #[inline]
@@ -24,7 +24,7 @@ impl WatchClient<TcpStream> {
     }
 }
 
-impl<S: AsyncWrite + AsyncRead + Unpin> WatchClient<S> {
+impl<S: AsyncWrite + AsyncRead + Unpin + Send + 'static> WatchClient<S> {
     #[inline]
     #[cfg(test)]
     pub async fn new<P>(

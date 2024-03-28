@@ -4,6 +4,7 @@ mod net;
 mod sync;
 mod utils;
 
+use std::sync::Arc;
 use std::{env, process};
 
 use anyhow::{bail, Result};
@@ -59,14 +60,14 @@ async fn _debug_send_text(args: Vec<String>, password: Option<&str>) -> Result<(
 
     let mut client = SendClient::connect("127.0.0.1:7703", &device, password).await?;
     client
-        .send(&DataFrame {
+        .send(Arc::new(DataFrame {
             info: DataFrameInfo {
                 device: Some(device.to_string()),
                 digest: String::from("fake digest"),
                 file: None,
             },
             body: text.as_bytes().to_vec(),
-        })
+        }))
         .await?;
 
     Ok(())

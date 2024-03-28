@@ -3,6 +3,8 @@ pub mod notify;
 mod read;
 mod write;
 
+use std::sync::Arc;
+
 use anyhow::{bail, Context, Error, Result};
 use tokio::net::TcpStream;
 use tokio::select;
@@ -129,12 +131,14 @@ async fn send_data(
             file: None,
         },
     };
+    let data_frame = Arc::new(data_frame);
+
     client
-        .send(&data_frame)
+        .send(Arc::clone(&data_frame))
         .await
         .context("send data to server")?;
 
-    *device = data_frame.info.device;
+    *device = Arc::try_unwrap(data_frame).unwrap().info.device;
 
     Ok(())
 }

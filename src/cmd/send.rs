@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use clap::Args;
@@ -46,7 +47,7 @@ impl SendArgs {
         println!("Send {} data to server", frame.body.len());
         let mut client =
             SendClient::connect(&cfg.server, &cfg.device, cfg.password.as_deref()).await?;
-        client.send(&frame).await?;
+        client.send(Arc::new(frame)).await?;
 
         Ok(())
     }

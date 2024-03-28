@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -10,7 +11,7 @@ use crate::net::frame::{DataFrame, Frame};
 #[cfg(test)]
 use crate::net::conn::Connection;
 
-pub struct SendClient<S: AsyncWrite + AsyncRead + Unpin>(Client<S>);
+pub struct SendClient<S: AsyncWrite + AsyncRead + Unpin + Send + 'static>(Client<S>);
 
 impl SendClient<TcpStream> {
     #[inline]
@@ -26,7 +27,7 @@ impl SendClient<TcpStream> {
     }
 }
 
-impl<S: AsyncWrite + AsyncRead + Unpin> SendClient<S> {
+impl<S: AsyncWrite + AsyncRead + Unpin + Send + 'static> SendClient<S> {
     #[inline]
     #[cfg(test)]
     pub async fn new<D, P>(conn: Connection<S>, device: D, password: Option<P>) -> Result<Self>
@@ -40,7 +41,7 @@ impl<S: AsyncWrite + AsyncRead + Unpin> SendClient<S> {
     }
 
     #[inline]
-    pub async fn send(&mut self, data: &DataFrame) -> Result<()> {
+    pub async fn send(&mut self, data: Arc<DataFrame>) -> Result<()> {
         self.0.send(data).await
     }
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::net::client::{SendClient, WatchClient};
 use crate::net::server;
 use crate::net::tests::get_test_data_frames;
@@ -30,7 +32,7 @@ async fn _test_server(port: u32, password: Option<&'static str>) {
     tokio::spawn(async move {
         loop {
             for frame in pub_frames.iter() {
-                send_client.send(frame).await.unwrap();
+                send_client.send(Arc::new(frame.clone())).await.unwrap();
             }
         }
     });
