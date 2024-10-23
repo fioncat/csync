@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-mod server;
-mod types;
+mod clipboard;
+mod sync;
 
 fn main() {
     println!("Hello, world!");
