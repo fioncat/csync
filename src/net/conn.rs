@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use bytes::{Buf, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 
-use crate::sync::frame::Frame;
+use super::frame::Frame;
 
 pub struct Connection<S: AsyncWrite + AsyncRead + Unpin> {
     stream: BufWriter<S>,
@@ -75,5 +75,59 @@ impl<S: AsyncWrite + AsyncRead + Unpin> Connection<S> {
     pub async fn write_frame(&mut self, frame: &Frame) -> Result<()> {
         frame.write(&mut self.stream, &self.password).await?;
         self.stream.flush().await.context("flush tcp stream")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tokio::fs::{File, OpenOptions};
+
+    use crate::net::frame::{DataFrame, DataInfo, FileInfo};
+
+    #[tokio::test]
+    async fn test_conn() {
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(".test_conn")
+            .await
+            .unwrap();
+        let mut conn = Connection::new(file, "password123".to_string());
+
+        let frames = [
+            Frame::Get,
+            Frame::Get,
+            Frame::Get,
+            Frame::Post(DataFrame {
+                info: DataInfo { file: None },
+                data: vec![1, 2, 3, 4],
+            }),
+            Frame::Get,
+            Frame::Error(String::from("hello error")),
+            Frame::Post(DataFrame {
+                info: DataInfo {
+                    file: Some(FileInfo {
+                        name: String::from("test_file"),
+                        mode: 123,
+                    }),
+                },
+                data: vec![5, 6, 7, 8],
+            }),
+            Frame::Get,
+            Frame::Get,
+        ];
+        for frame in frames.iter() {
+            conn.write_frame(frame).await.unwrap();
+        }
+
+        let file = File::open(".test_conn").await.unwrap();
+        let mut conn = Connection::new(file, "password123".to_string());
+        for expect in frames {
+            let frame = conn.must_read_frame().await.unwrap();
+            assert_eq!(expect, frame);
+        }
     }
 }

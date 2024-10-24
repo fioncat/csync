@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io::Cursor;
 
 use aes_gcm::aead::rand_core::RngCore;
@@ -20,35 +21,39 @@ const PROTOCOL_GET: u8 = b'1';
 const PROTOCOL_ERROR: u8 = b'2';
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum Frame {
+pub enum Frame {
     Post(DataFrame),
     Get,
     Error(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct DataFrame {
-    pub meta: MetadataFrame,
+pub struct DataFrame {
+    pub info: DataInfo,
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super) struct MetadataFrame {
-    pub device: String,
-    pub file: Option<FileInfo>,
-    pub auth: AuthInfo,
+impl Display for DataFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} bytes, {:?}", self.data.len(), self.info)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super) struct FileInfo {
+pub struct DataInfo {
+    pub file: Option<FileInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FileInfo {
     pub name: String,
     pub mode: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super) struct AuthInfo {
-    pub nonce: Vec<u8>,
-    pub salt: Vec<u8>,
+struct AuthInfo {
+    nonce: Vec<u8>,
+    salt: Vec<u8>,
 }
 
 #[derive(Debug, Error)]
@@ -70,7 +75,7 @@ pub(super) enum FrameError {
 }
 
 impl Frame {
-    pub(super) fn parse(
+    pub fn parse(
         src: &mut Cursor<&[u8]>,
         password: &str,
     ) -> Result<Option<(Self, usize)>, FrameError> {
@@ -121,10 +126,11 @@ impl Frame {
 
         match flag {
             PROTOCOL_POST => {
-                let meta: MetadataFrame = decode_object(&get_data(src)?)?;
-                let raw_data = get_data(src)?;
-                let data = meta.auth.decrypt(password, &raw_data)?;
-                Ok(Self::Post(DataFrame { meta, data }))
+                let auth: AuthInfo = decode_object(&get_data(src)?)?;
+                let info_data = auth.decrypt(password, &get_data(src)?)?;
+                let info: DataInfo = decode_object(&info_data)?;
+                let data = auth.decrypt(password, &get_data(src)?)?;
+                Ok(Self::Post(DataFrame { info, data }))
             }
 
             PROTOCOL_GET => Ok(Self::Get),
@@ -148,7 +154,7 @@ impl Frame {
     fn check(src: &mut Cursor<&[u8]>) -> Result<(), FrameError> {
         let flag = get_u8(src)?;
         let check_rounds = match flag {
-            PROTOCOL_POST => 2,
+            PROTOCOL_POST => 3,
             PROTOCOL_GET => 0,
             PROTOCOL_ERROR => 1,
             _ => return Err(Self::invalid_flag()),
@@ -164,15 +170,18 @@ impl Frame {
         FrameError::Protocol("invalid frame flag")
     }
 
-    pub(super) async fn write<W>(&self, stream: &mut W, password: &str) -> Result<()>
+    pub async fn write<W>(&self, stream: &mut W, password: &str) -> Result<()>
     where
         W: AsyncWrite + Unpin,
     {
         match self {
             Self::Post(data_frame) => {
                 stream.write_u8(PROTOCOL_POST).await?;
-                write_data(stream, &encode_object(&data_frame.meta)?).await?;
-                let data = data_frame.meta.auth.encrypt(password, &data_frame.data)?;
+                let auth = AuthInfo::new();
+                write_data(stream, &encode_object(&auth)?).await?;
+                let info_data = auth.encrypt(password, &encode_object(&data_frame.info)?)?;
+                write_data(stream, &info_data).await?;
+                let data = auth.encrypt(password, &data_frame.data)?;
                 write_data(stream, &data).await?;
             }
 
@@ -185,6 +194,13 @@ impl Frame {
         }
         Ok(())
     }
+
+    pub fn as_data(&self) -> &DataFrame {
+        match self {
+            Frame::Post(data_frame) => data_frame,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl AuthInfo {
@@ -195,7 +211,7 @@ impl AuthInfo {
     const PBKDF2_ROUNDS: u32 = 1024;
     const PBKDF2_ROUNDS_TEST: u32 = 128;
 
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         let mut rng = OsRng;
         Self {
             nonce: Self::generate_nonce(&mut rng),
@@ -331,11 +347,7 @@ mod tests {
         // Write: GET, GET, POST, ERROR, GET
         let get_frame = Frame::Get;
         let post_frame = Frame::Post(DataFrame {
-            meta: MetadataFrame {
-                device: String::from("test"),
-                file: None,
-                auth: AuthInfo::new(),
-            },
+            info: DataInfo { file: None },
             data: vec![7, 8, 9],
         });
         let error_frame = Frame::Error(String::from("error message"));

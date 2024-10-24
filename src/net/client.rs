@@ -10,12 +10,10 @@ use tokio::net::{lookup_host, TcpSocket, TcpStream};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{self, Instant, Timeout};
 
-use crate::sync::conn::Connection;
-use crate::sync::frame::{AuthInfo, DataFrame, FileInfo, Frame, MetadataFrame};
+use super::conn::Connection;
+use super::frame::{DataFrame, DataInfo, FileInfo, Frame};
 
 pub struct Client {
-    device: String,
-
     addr: SocketAddr,
     password: String,
 
@@ -38,19 +36,14 @@ pub struct FileItem {
 impl Client {
     const INIT_SEND_TIMEOUT: Duration = Duration::from_millis(200);
     const RETRY_SEND_TIMEOUT: Duration = Duration::from_secs(2);
-    const RETRY_INETRVAL: Duration = Duration::from_millis(300);
+    const RETRY_INETRVAL: Duration = Duration::from_secs(1);
 
-    const SEND_MAX_RETRY: usize = 3;
+    const SEND_MAX_RETRY: usize = 5;
 
     const MIN_READ_INTERVAL: u64 = 200;
     const MAX_READ_INTERVAL: u64 = 5000;
 
-    pub async fn connect(
-        device: String,
-        addr: String,
-        password: String,
-        read_interval: u64,
-    ) -> Result<Self> {
+    pub async fn connect(addr: String, password: String, read_interval: u64) -> Result<Self> {
         let addr = parse_addr(addr).await?;
         if read_interval < Self::MIN_READ_INTERVAL {
             bail!(
@@ -65,7 +58,6 @@ impl Client {
             );
         }
         Ok(Self {
-            device,
             addr,
             password,
             conn: None,
@@ -110,12 +102,8 @@ impl Client {
         };
 
         if let Frame::Post(data_frame) = frame {
-            info!(
-                "[client] received {} data from device '{}'",
-                data_frame.data.len(),
-                data_frame.meta.device
-            );
-            let data_item = if let Some(file_info) = data_frame.meta.file {
+            debug!("[client] received post response from server: {data_frame}");
+            let data_item = if let Some(file_info) = data_frame.info.file {
                 DataItem::File(FileItem {
                     name: file_info.name,
                     mode: file_info.mode,
@@ -129,29 +117,22 @@ impl Client {
     }
 
     async fn write_loop(&mut self, data_item: DataItem) {
-        let device = self.device.clone();
-        let auth = AuthInfo::new();
         let data_frame = match data_item {
             DataItem::File(file_item) => DataFrame {
-                meta: MetadataFrame {
-                    device,
+                info: DataInfo {
                     file: Some(FileInfo {
                         name: file_item.name,
                         mode: file_item.mode,
                     }),
-                    auth,
                 },
                 data: file_item.data,
             },
             DataItem::Clipboard(data) => DataFrame {
-                meta: MetadataFrame {
-                    device,
-                    file: None,
-                    auth,
-                },
+                info: DataInfo { file: None },
                 data,
             },
         };
+        debug!("[client] send post request to server: {data_frame}");
         let frame = Frame::Post(data_frame);
         if !self.send_frame(frame).await {
             return;
@@ -170,8 +151,8 @@ impl Client {
                         error!(
                             "[client] get connection for sending error: {err:#}; retry: {retry}"
                         );
+                        time::sleep(Self::RETRY_INETRVAL).await;
                     }
-                    time::sleep(Self::RETRY_INETRVAL).await;
                     continue;
                 }
             };
@@ -184,7 +165,6 @@ impl Client {
             let (done_tx, done_rx) = oneshot::channel::<Result<Connection<TcpStream>>>();
             let frame = Arc::clone(&frame);
             tokio::spawn(async move {
-                debug!("[client] write frame to server");
                 let result = conn.write_frame(frame.as_ref()).await;
                 let _ = match result {
                     Ok(_) => done_tx.send(Ok(conn)),
@@ -224,7 +204,6 @@ impl Client {
 
         match conn.must_read_frame().await {
             Ok(frame) => {
-                debug!("[client] read frame from server");
                 self.conn = Some(conn);
                 Some(frame)
             }
@@ -284,4 +263,76 @@ where
     F: Future,
 {
     time::timeout_at(Instant::now() + timeout, future)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{env, fs};
+
+    use log::LevelFilter;
+
+    use super::*;
+
+    use crate::logs;
+
+    /// Start test case:
+    ///
+    /// ```
+    /// TEST_SERVER="true" cargo test net::server::tests::test_server -- --nocapture
+    /// TEST_CLIENT="0" cargo test net::client::tests::test_client -- --nocapture
+    /// echo -n "Some content" > .test_client_0
+    /// ```
+    #[tokio::test]
+    async fn test_client() {
+        let client_name = match env::var("TEST_CLIENT") {
+            Ok(name) => name,
+            Err(_) => return,
+        };
+        logs::init(LevelFilter::Debug).unwrap();
+
+        let file_name = format!(".test_client_{client_name}");
+
+        let addr = String::from("127.0.0.1:9988");
+        let password = String::from("password123");
+
+        let client = Client::connect(addr, password, 500).await.unwrap();
+        let (mut watch_rx, write_tx) = client.start().await;
+
+        let mut trigger_intv = tokio::time::interval_at(Instant::now(), Duration::from_secs(1));
+        loop {
+            tokio::select! {
+                _ = trigger_intv.tick() => {
+                    let data = fs::read(&file_name).unwrap_or_default();
+                    if data.is_empty() {
+                        continue;
+                    }
+                    println!(
+                        "Write data to server: {}",
+                        String::from_utf8_lossy(&data)
+                    );
+                    write_tx.send(DataItem::Clipboard(data)).await.unwrap();
+
+                    fs::remove_file(&file_name).unwrap();
+                }
+                Some(data_item) = watch_rx.recv() => {
+                    match data_item {
+                        DataItem::File(file_item) => {
+                            println!(
+                                "Read file from server: {}, name: {}, mode: {}",
+                                String::from_utf8_lossy(&file_item.data),
+                                file_item.name,
+                                file_item.mode,
+                            );
+                        }
+                        DataItem::Clipboard(data) => {
+                            println!(
+                                "Read data from server: {}",
+                                String::from_utf8_lossy(&data)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

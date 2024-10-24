@@ -8,6 +8,8 @@ use log::{debug, error, info};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
+use crate::hash::get_hash;
+
 #[derive(Debug, Clone, Copy)]
 enum ClipboardType {
     Wayland,
@@ -70,7 +72,7 @@ impl Clipboard {
                                 continue;
                             },
                         };
-                        let hash = Self::get_hash(&current_data);
+                        let hash = get_hash(&current_data);
                         if self.current_hash == hash {
                             continue;
                         }
@@ -79,7 +81,7 @@ impl Clipboard {
                         watch_tx.send(current_data).await.unwrap();
                     },
                     Some(data) = write_rx.recv() => {
-                        let hash = Self::get_hash(&data);
+                        let hash = get_hash(&data);
                         if self.current_hash == hash {
                             continue;
                         }
@@ -198,11 +200,6 @@ impl Clipboard {
             _ => bail!("unsupported os {}", env::consts::OS),
         }
     }
-
-    fn get_hash(data: &[u8]) -> String {
-        let hash = blake3::hash(data);
-        format!("{}", hash.to_hex())
-    }
 }
 
 #[cfg(test)]
@@ -211,8 +208,12 @@ mod tests {
 
     use super::*;
 
-    // HOW TO TEST: TEST_CLIPBOARD="true" cargo test clipboard::tests::test_clipboard -- --nocapture
-    // Trigger cipboard writing: echo -n "Some content" > .test_clipboard
+    /// Start test case:
+    ///
+    /// ```
+    /// TEST_CLIPBOARD="true" cargo test clipboard::tests::test_clipboard -- --nocapture
+    /// echo -n "Some content" > .test_clipboard
+    /// ```
     #[tokio::test]
     async fn test_clipboard() {
         if env::var("TEST_CLIPBOARD").is_err() {
@@ -222,30 +223,29 @@ mod tests {
         let clipboard = Clipboard::build(300).unwrap();
         let (mut watch_rx, write_tx) = clipboard.start();
 
-        tokio::spawn(async move {
-            let mut trigger_intv = tokio::time::interval_at(Instant::now(), Duration::from_secs(1));
-            loop {
-                trigger_intv.tick().await;
-                let data = fs::read(".test_clipboard").unwrap_or_default();
-                if data.is_empty() {
-                    continue;
-                }
-                println!(
-                    "Write data to clipboard: {}",
-                    String::from_utf8_lossy(&data)
-                );
-                write_tx.send(data).await.unwrap();
-
-                fs::remove_file(".test_clipboard").unwrap();
-            }
-        });
-
+        let mut trigger_intv = tokio::time::interval_at(Instant::now(), Duration::from_secs(1));
         loop {
-            let data = watch_rx.recv().await.unwrap();
-            println!(
-                "Read data from clipboard: {}",
-                String::from_utf8_lossy(&data)
-            );
+            tokio::select! {
+                _ = trigger_intv.tick() => {
+                    let data = fs::read(".test_clipboard").unwrap_or_default();
+                    if data.is_empty() {
+                        continue;
+                    }
+                    println!(
+                        "Write data to clipboard: {}",
+                        String::from_utf8_lossy(&data)
+                    );
+                    write_tx.send(data).await.unwrap();
+
+                    fs::remove_file(".test_clipboard").unwrap();
+                },
+                Some(data) = watch_rx.recv() => {
+                    println!(
+                        "Read data from clipboard: {}",
+                        String::from_utf8_lossy(&data)
+                    );
+                },
+            }
         }
     }
 }
