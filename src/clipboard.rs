@@ -4,7 +4,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
-use log::{debug, error};
+use log::{debug, error, info};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
@@ -56,7 +56,7 @@ impl Clipboard {
         let mut read_intv =
             tokio::time::interval_at(Instant::now(), Duration::from_millis(self.read_interval));
         tokio::spawn(async move {
-            debug!(
+            info!(
                 "[clipboard] start handling loop, with read interval {}ms, and clipboard type {:?}",
                 self.read_interval, self.clip_type
             );

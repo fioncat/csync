@@ -19,39 +19,40 @@ const PROTOCOL_POST: u8 = b'0';
 const PROTOCOL_GET: u8 = b'1';
 const PROTOCOL_ERROR: u8 = b'2';
 
-pub enum Frame {
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum Frame {
     Post(DataFrame),
     Get,
     Error(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct DataFrame {
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct DataFrame {
     pub meta: MetadataFrame,
     pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct MetadataFrame {
+pub(super) struct MetadataFrame {
     pub device: String,
     pub file: Option<FileInfo>,
     pub auth: AuthInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct FileInfo {
+pub(super) struct FileInfo {
     pub name: String,
     pub mode: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct AuthInfo {
+pub(super) struct AuthInfo {
     pub nonce: Vec<u8>,
     pub salt: Vec<u8>,
 }
 
 #[derive(Debug, Error)]
-pub enum FrameError {
+pub(super) enum FrameError {
     #[error("not enough data is available to parse a message")]
     Incomplete,
 
@@ -69,7 +70,10 @@ pub enum FrameError {
 }
 
 impl Frame {
-    fn parse(src: &mut Cursor<&[u8]>, password: &str) -> Result<Option<(Self, usize)>, FrameError> {
+    pub(super) fn parse(
+        src: &mut Cursor<&[u8]>,
+        password: &str,
+    ) -> Result<Option<(Self, usize)>, FrameError> {
         // The first step is to check if enough data has been buffered to parse
         // a single frame. This step is usually much faster than doing a full
         // parse of the frame, and allows us to skip allocating data structures
@@ -134,7 +138,7 @@ impl Frame {
                         return Err(FrameError::Protocol("invalid error message from server"));
                     }
                 };
-                Err(FrameError::Server(message))
+                Ok(Self::Error(message))
             }
 
             _ => Err(Self::invalid_flag()),
@@ -160,7 +164,7 @@ impl Frame {
         FrameError::Protocol("invalid frame flag")
     }
 
-    async fn write<W>(&self, stream: &mut W, password: &str) -> Result<()>
+    pub(super) async fn write<W>(&self, stream: &mut W, password: &str) -> Result<()>
     where
         W: AsyncWrite + Unpin,
     {
@@ -191,7 +195,7 @@ impl AuthInfo {
     const PBKDF2_ROUNDS: u32 = 1024;
     const PBKDF2_ROUNDS_TEST: u32 = 128;
 
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut rng = OsRng;
         Self {
             nonce: Self::generate_nonce(&mut rng),
@@ -316,6 +320,48 @@ fn encode_object<T: Serialize>(value: &T) -> Result<Vec<u8>, FrameError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use tokio::io::BufWriter;
+
+    #[tokio::test]
+    async fn test_frame() {
+        let mut buffer: Vec<u8> = Vec::new();
+        let mut stream = BufWriter::new(&mut buffer);
+
+        // Write: GET, GET, POST, ERROR, GET
+        let get_frame = Frame::Get;
+        let post_frame = Frame::Post(DataFrame {
+            meta: MetadataFrame {
+                device: String::from("test"),
+                file: None,
+                auth: AuthInfo::new(),
+            },
+            data: vec![7, 8, 9],
+        });
+        let error_frame = Frame::Error(String::from("error message"));
+
+        get_frame.write(&mut stream, "password123").await.unwrap();
+        get_frame.write(&mut stream, "password123").await.unwrap();
+        post_frame.write(&mut stream, "password123").await.unwrap();
+        error_frame.write(&mut stream, "password123").await.unwrap();
+        get_frame.write(&mut stream, "password123").await.unwrap();
+        stream.flush().await.unwrap();
+        drop(stream);
+
+        let expects = [
+            get_frame.clone(),
+            get_frame.clone(),
+            post_frame,
+            error_frame,
+            get_frame,
+        ];
+        for expect in expects {
+            let mut cursor = Cursor::new(&buffer[..]);
+            let (frame, len) = Frame::parse(&mut cursor, "password123").unwrap().unwrap();
+            assert_eq!(frame, expect);
+            buffer.drain(..len);
+        }
+    }
 
     #[test]
     fn test_auth() {
