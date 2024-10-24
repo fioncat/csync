@@ -3,5 +3,5 @@ mod conn;
 mod frame;
 mod server;
 
-pub use client::Client;
+pub use client::{Client, DataItem};
 pub use server::Server;

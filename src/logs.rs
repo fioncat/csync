@@ -1,10 +1,17 @@
 use std::io::{self, IsTerminal};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
 
-pub fn init(level: LevelFilter) -> Result<()> {
+pub fn init(level: &str) -> Result<()> {
+    let level = match level {
+        "error" => LevelFilter::Error,
+        "info" => LevelFilter::Info,
+        "debug" => LevelFilter::Debug,
+        _ => bail!("unknown log level '{}'", level),
+    };
+
     let stdout = io::stdout();
     let is_terminal = stdout.is_terminal();
 

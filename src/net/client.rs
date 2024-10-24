@@ -65,7 +65,7 @@ impl Client {
         })
     }
 
-    async fn start(mut self) -> (mpsc::Receiver<DataItem>, mpsc::Sender<DataItem>) {
+    pub fn start(mut self) -> (mpsc::Receiver<DataItem>, mpsc::Sender<DataItem>) {
         let (watch_tx, watch_rx) = mpsc::channel::<DataItem>(500);
         let (write_tx, mut write_rx) = mpsc::channel::<DataItem>(500);
 
@@ -269,8 +269,6 @@ where
 mod tests {
     use std::{env, fs};
 
-    use log::LevelFilter;
-
     use super::*;
 
     use crate::logs;
@@ -288,7 +286,7 @@ mod tests {
             Ok(name) => name,
             Err(_) => return,
         };
-        logs::init(LevelFilter::Debug).unwrap();
+        logs::init("debug").unwrap();
 
         let file_name = format!(".test_client_{client_name}");
 
@@ -296,7 +294,7 @@ mod tests {
         let password = String::from("password123");
 
         let client = Client::connect(addr, password, 500).await.unwrap();
-        let (mut watch_rx, write_tx) = client.start().await;
+        let (mut watch_rx, write_tx) = client.start();
 
         let mut trigger_intv = tokio::time::interval_at(Instant::now(), Duration::from_secs(1));
         loop {

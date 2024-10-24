@@ -1,17 +1,21 @@
-#![allow(dead_code)]
+use std::process;
 
-use log::{error, info, LevelFilter};
+use clap::Parser;
+use cmd::App;
 
 mod clipboard;
+mod cmd;
 mod config;
 mod hash;
 mod logs;
 mod net;
 mod sync;
 
-fn main() {
-    logs::init(LevelFilter::Info).unwrap();
-
-    info!("hello");
-    error!("error");
+#[tokio::main]
+async fn main() {
+    let app = App::parse();
+    if let Err(err) = app.run().await {
+        eprintln!("Error: {:#}", err);
+        process::exit(1);
+    }
 }

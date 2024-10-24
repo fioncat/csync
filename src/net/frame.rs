@@ -14,8 +14,6 @@ use sha2::Sha256;
 use thiserror::Error;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
-pub const PROTOCOL_VERSION: u32 = 2;
-
 const PROTOCOL_POST: u8 = b'0';
 const PROTOCOL_GET: u8 = b'1';
 const PROTOCOL_ERROR: u8 = b'2';
@@ -66,12 +64,6 @@ pub(super) enum FrameError {
 
     #[error("authentication failed")]
     Auth,
-
-    #[error("server error: {0}")]
-    Server(String),
-
-    #[error("unexpect next frame, expect to be `{0}`")]
-    Unexpect(&'static str),
 }
 
 impl Frame {

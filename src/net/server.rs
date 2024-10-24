@@ -218,8 +218,6 @@ impl ServerState {
 mod tests {
     use std::env;
 
-    use log::LevelFilter;
-
     use super::*;
 
     use crate::logs;
@@ -234,7 +232,7 @@ mod tests {
         if env::var("TEST_SERVER").is_err() {
             return;
         }
-        logs::init(LevelFilter::Debug).unwrap();
+        logs::init("debug").unwrap();
         let addr = String::from("127.0.0.1:9988");
         let password = String::from("password123");
 
