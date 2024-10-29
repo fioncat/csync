@@ -1,7 +1,8 @@
-use std::env;
+use core::str;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
+use std::{env, fs};
 
 use anyhow::{bail, Context, Result};
 use log::{debug, error, info};
@@ -102,6 +103,22 @@ impl Clipboard {
     }
 
     fn write_raw(&self, data: &[u8]) -> Result<()> {
+        if str::from_utf8(data).is_err() {
+            // If the data is not encoded in UTF-8, we assume it is a PNG image
+            // (usually, users cannot copy other binary data to the clipboard).
+            // For PNG image data, different systems may require different handling
+            // logic compared to text. For example, in MacOS, the `pbcopy` command can
+            // only handle text data, so images need to be saved to a file and then
+            // processed using other commands. But in Wayland, the `wl-copy` can handle
+            // both text and image, so we don't need add extra method to handle Wayland
+            // image data.
+            // TODO: Of course, this could be a hasty judgment, and we may be able to
+            // parse the data and determine it based on the PNG file header.
+            if let ClipboardType::Macos = self.clip_type {
+                return self.macos_write_image(data);
+            }
+        }
+
         let mut copy_cmd = self.new_copy_cmd();
         // Write the data to copy command's stdin
         copy_cmd.stdin(Stdio::piped());
@@ -134,6 +151,7 @@ impl Clipboard {
     }
 
     pub fn read_raw(&self) -> Result<Vec<u8>> {
+        // TODO: MacOS cannot read PNG image data by using `pbpaste` command.
         let mut paste_cmd = self.new_paste_cmd();
         // Read the data from paste command's stdout
         paste_cmd.stdout(Stdio::piped());
@@ -195,6 +213,37 @@ impl Clipboard {
                 cmd
             }
         }
+    }
+
+    fn macos_write_image(&self, data: &[u8]) -> Result<()> {
+        // Write image data to a temporary file, use `osascript` to copy it.
+        // See: https://stackoverflow.com/questions/6919403/set-clipboard-to-image-pbcopy
+        let home_dir = match dirs::home_dir() {
+            Some(dir) => dir,
+            None => bail!("cannot get home directory for macos"),
+        };
+
+        let tmp_path = home_dir.join(".csync_image.png");
+        fs::write(&tmp_path, data).context("write image data to temporary file")?;
+
+        let mut cmd = Command::new("osascript");
+        cmd.arg("-e");
+        cmd.arg(format!(
+            "set the clipboard to (read (POSIX file \"{}\") as JPEG picture)",
+            tmp_path.display()
+        ));
+
+        let status = cmd
+            .status()
+            .context("execute macos clipboard image copy command")?;
+
+        fs::remove_file(tmp_path).context("remove temporary image file")?;
+
+        if !status.success() {
+            bail!("macos clipboard image copy command exited with bad code");
+        }
+
+        Ok(())
     }
 
     fn get_clipboard_type() -> Result<ClipboardType> {
