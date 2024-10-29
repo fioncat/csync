@@ -12,7 +12,7 @@ Csync is written by Rust, it is very fast and lightweight!
 
 #### Download from release
 
-You can find all bianry files from [GitHub Release Page](https://github.com/fioncat/csync/releases).
+You can find all binary files from [GitHub Release Page](https://github.com/fioncat/csync/releases).
 
 #### Use Cargo to install it
 
@@ -30,7 +30,7 @@ You need to prepare a server that all devices can access to perform data exchang
 csync serve --bind "<bind-addr>" --password "<your-password>"
 ```
 
-Arguements:
+Arguments:
 
 - `--bind`: The server bind address, default is `0.0.0.0:7703`.
 - `--password`: All data will be encrypted using [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard). Your clipboard data will be safety exchanged in network. The client should configure the same password otherwise it won't be able to send or receive data from server.
