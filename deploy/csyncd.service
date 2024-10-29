@@ -1,0 +1,14 @@
+[Unit]
+Description=Clipboard Sync
+After=multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=csync start
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
