@@ -16,6 +16,9 @@ pub struct Config {
     #[serde(default = "Config::default_download_dir")]
     pub download_dir: String,
 
+    #[serde(default = "Config::default_upload_dir")]
+    pub upload_dir: String,
+
     #[serde(default = "Config::default_client_interval")]
     pub client_interval: u64,
 
@@ -78,6 +81,7 @@ impl Config {
             addr: Self::default_addr(),
             password: Self::default_password(),
             download_dir: Self::default_download_dir(),
+            upload_dir: Self::default_upload_dir(),
             client_interval: Self::default_client_interval(),
             clipboard_interval: Self::default_clipboard_interval(),
         }
@@ -96,6 +100,11 @@ impl Config {
             Some(home_dir) => home_dir.join("csync").to_string_lossy().to_string(),
             None => String::from("/tmp/csync"),
         }
+    }
+
+    fn default_upload_dir() -> String {
+        let download_dir = PathBuf::from(Self::default_download_dir());
+        download_dir.join("upload").to_string_lossy().to_string()
     }
 
     fn default_client_interval() -> u64 {

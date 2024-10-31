@@ -1,13 +1,16 @@
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::PathBuf;
+use std::time::Duration;
 use std::{fs, io};
 
+use anyhow::{Context, Result};
 use log::{debug, error, info};
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::clipboard::Clipboard;
-use crate::net::{Client, DataItem};
+use crate::net::{Client, DataItem, FileItem};
 
 pub struct Sync {
     clipboard_watch_rx: mpsc::Receiver<Vec<u8>>,
@@ -17,10 +20,18 @@ pub struct Sync {
     server_write_tx: mpsc::Sender<DataItem>,
 
     download_dir: String,
+    upload_dir: String,
 }
 
 impl Sync {
-    pub fn new(clipboard: Clipboard, client: Client, download_dir: String) -> Self {
+    const WATCH_UPLOAD_DIR_INTERVAL: Duration = Duration::from_secs(1);
+
+    pub fn new(
+        clipboard: Clipboard,
+        client: Client,
+        download_dir: String,
+        upload_dir: String,
+    ) -> Self {
         let (clipboard_watch_rx, clipboard_write_tx) = clipboard.start();
         let (server_watch_rx, server_write_tx) = client.start();
         Self {
@@ -29,10 +40,13 @@ impl Sync {
             server_watch_rx,
             server_write_tx,
             download_dir,
+            upload_dir,
         }
     }
 
     pub async fn start(&mut self) {
+        let mut watch_upload_intv =
+            tokio::time::interval_at(Instant::now(), Self::WATCH_UPLOAD_DIR_INTERVAL);
         info!("[sync] begin to sync clipboard and server");
         loop {
             tokio::select! {
@@ -42,6 +56,9 @@ impl Sync {
                 Some(data_item) = self.server_watch_rx.recv() => {
                     self.handle_server(data_item).await;
                 },
+                _ = watch_upload_intv.tick() => {
+                    self.watch_upload_dir().await;
+                }
             }
         }
     }
@@ -111,5 +128,57 @@ impl Sync {
                 }
             }
         }
+    }
+
+    async fn watch_upload_dir(&self) {
+        if let Err(err) = self.watch_upload_dir_raw().await {
+            error!("[sync] watch upload dir error: {err:#}");
+        }
+    }
+
+    async fn watch_upload_dir_raw(&self) -> Result<()> {
+        let (file_item, path) = match fs::read_dir(&self.upload_dir) {
+            Ok(entries) => {
+                let mut result = None;
+                for entry in entries {
+                    let entry = entry.context("read dir entry")?;
+                    let metadata = entry.metadata().context("read dir entry metadata")?;
+                    if !metadata.is_file() {
+                        continue;
+                    }
+                    let name = match entry.file_name().to_str() {
+                        Some(name) => String::from(name),
+                        None => continue,
+                    };
+                    let path = PathBuf::from(&self.upload_dir).join(&name);
+                    let data = fs::read(&path)
+                        .with_context(|| format!("read file '{}'", path.display()))?;
+                    result = Some((
+                        FileItem {
+                            name,
+                            mode: metadata.mode() as u64,
+                            data,
+                        },
+                        path,
+                    ));
+                }
+                match result {
+                    Some((data_item, path)) => (data_item, path),
+                    None => return Ok(()),
+                }
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err).context("read dir"),
+        };
+
+        debug!("[sync] get upload file from dir, with {} bytes data, name '{}', mode {}, send to server", file_item.data.len(), file_item.name, file_item.mode);
+        self.server_write_tx
+            .send(DataItem::File(file_item))
+            .await
+            .unwrap();
+
+        fs::remove_file(path).context("remove file")?;
+
+        Ok(())
     }
 }
