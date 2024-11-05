@@ -29,7 +29,7 @@ impl StartArgs {
             .await
             .context("connect to server")?;
 
-        let mut sync = Sync::new(clipboard, client, cfg.download_dir);
+        let mut sync = Sync::new(clipboard, client, cfg.download_dir, cfg.upload_dir);
         sync.start().await;
         Ok(())
     }
