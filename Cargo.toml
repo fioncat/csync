@@ -22,7 +22,7 @@ fern = { version = "0.7.1", features = ["colored"] }
 humantime = "2.1.0"
 log = "0.4.22"
 pbkdf2 = "0.12.2"
-serde = { version = "1.0.216", features = ["derive"] }
+serde = { version = "1.0.217", features = ["derive"] }
 sha2 = "0.10.8"
 thiserror = "2.0.9"
 tokio = { version = "1.42.0", features = ["full"] }
