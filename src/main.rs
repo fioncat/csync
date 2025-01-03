@@ -2,6 +2,7 @@
 
 mod dirs;
 mod server;
+mod types;
 
 use server::authn::token::config::TokenConfig;
 
