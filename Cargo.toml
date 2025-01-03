@@ -1,0 +1,12 @@
+[package]
+name = "csync"
+version = "0.5.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+chrono = "0.4.39"
+jsonwebtoken = "9.3.0"
+log = "0.4.22"
+openssl = "0.10.68"
+serde = {version = "1.0.217", features = ["derive"] }
