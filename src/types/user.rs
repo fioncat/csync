@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub name: String,
     pub role_names: Vec<String>,
@@ -8,6 +11,7 @@ pub struct User {
     pub password: Option<Password>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Role {
     pub name: String,
     pub rules: Vec<RoleRule>,
@@ -16,12 +20,22 @@ pub struct Role {
     pub update_time: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoleRule {
     pub objects: Vec<String>,
     pub verbs: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Password {
     pub salt: String,
     pub hash: String,
+}
+
+impl Password {
+    pub fn generate_hash(password: &str, salt: &str) -> String {
+        let mut input = String::from(password);
+        input.push_str(salt);
+        sha256::digest(input)
+    }
 }

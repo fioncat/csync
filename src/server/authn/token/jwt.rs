@@ -216,7 +216,8 @@ mod tests {
             println!("test: {}", test_case.user);
             let result = || -> Result<()> {
                 let tokenizer = JwtTokenizer::new(&test_case.private_key, &test_case.public_key)?;
-                let token = tokenizer.generate_token(test_case.user.clone(), 1)?;
+                let expiry = if test_case.expired { 1 } else { 3600 };
+                let token = tokenizer.generate_token(test_case.user.clone(), expiry)?;
                 if test_case.expired {
                     sleep(Duration::from_secs(2)); // Wait for token to expire
                 }
