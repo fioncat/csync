@@ -4,11 +4,6 @@ use serde::{Deserialize, Serialize};
 pub const MIME_JSON: &str = "application/json";
 pub const MIME_OCTET_STREAM: &str = "application/octet-stream";
 
-pub enum RawResponse {
-    Json(String),
-    Binary(Option<String>, Vec<u8>),
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct CommonResponse {
     pub code: u16,

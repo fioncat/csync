@@ -51,15 +51,6 @@ impl Dispatcher {
         Self { handlers }
     }
 
-    pub fn list_resource_names(&self) -> Vec<&str> {
-        let mut list = vec![];
-        for name in self.handlers.keys() {
-            list.push(*name);
-        }
-        list.sort_unstable();
-        list
-    }
-
     pub fn dispatch(
         &self,
         rsc_req: ResourceRequest,

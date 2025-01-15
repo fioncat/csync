@@ -62,9 +62,6 @@ pub enum RequestError {
     #[error("Invalid image data, expect png or jpeg")]
     InvalidImage,
 
-    #[error("Empty metadata returned by server")]
-    ExpectMetadata,
-
     #[error("Server returned inconsistent hash")]
     HashNotMatch,
 }

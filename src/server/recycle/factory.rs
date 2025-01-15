@@ -37,6 +37,13 @@ impl RecyclerFactory {
             warn!("Recycle image is disabled");
         }
 
+        if cfg.file.enable {
+            let rsc = RecycleResource::File(cfg.file);
+            resources.push(rsc);
+        } else {
+            warn!("Recycle file is disabled");
+        }
+
         if resources.is_empty() {
             return Ok(None);
         }

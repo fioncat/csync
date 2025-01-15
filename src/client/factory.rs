@@ -44,8 +44,4 @@ impl ClientFactory {
 
         Ok(client)
     }
-
-    pub fn config(&self) -> &ClientConfig {
-        &self.cfg
-    }
 }
