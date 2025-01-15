@@ -1,0 +1,8 @@
+server = "http://127.0.0.1:7883"
+
+user = "fioncat"
+password = "test123"
+
+[secret]
+enable = true
+key = "test_key"

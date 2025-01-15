@@ -1,0 +1,15 @@
+[Unit]
+Description=Clipboard Sync Daemon
+Documentation=https://github.com/fioncat/csync
+After=multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/csync daemon --log-level info
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+bind = "127.0.0.1:7883"
+ssl = false
+allow_insecure_client = true
+
+[authn]
+admin_allow_list = ["127.0.0.1"]
+admin_password = "test_admin123"
+allow_anonymous = false
+
+[authn.token]
+expiry = 86400
+
+[db]
+name = "sqlite"
+
+[db.sqlite]
+memory = true
+
+[secret]
+enable = true
+key = "test_key"
