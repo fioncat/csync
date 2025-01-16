@@ -98,6 +98,14 @@ impl Client {
                     let cert = Certificate::from_pem(&data).context("load cert file")?;
                     reqwest::Client::builder()
                         .add_root_certificate(cert)
+                        // FIXME: Due to unknown reasons, reqwest's `add_root_certificate`
+                        // call for self-signed certificates does not work properly.
+                        // Therefore, we have to use `danger_accept_invalid_certs` to
+                        // forcibly skip certificate validation. We need to wait for
+                        //   <https://github.com/seanmonstar/reqwest/issues/1554>
+                        // to be resolved before we can remove this call for self-signed
+                        // certificates.
+                        .danger_accept_invalid_certs(true)
                         .build()
                         .context("build server client")?
                 }
