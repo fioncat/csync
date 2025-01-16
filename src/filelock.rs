@@ -1,7 +1,66 @@
+use std::fs;
 use std::io::{self, Read, Write};
+use std::path::PathBuf;
+use std::process;
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use file_lock::FileLock;
+use log::warn;
+
+pub struct GlobalLock {
+    path: PathBuf,
+    /// Wrap the `file_lock` crate
+    _file_lock: file_lock::FileLock,
+}
+
+impl GlobalLock {
+    const RESOURCE_TEMPORARILY_UNAVAILABLE_CODE: i32 = 11;
+
+    pub fn acquire(path: PathBuf) -> Result<GlobalLock> {
+        let lock_opts = file_lock::FileOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true);
+        let mut file_lock = match file_lock::FileLock::lock(&path, false, lock_opts) {
+            Ok(lock) => lock,
+            Err(err) => match err.raw_os_error() {
+                Some(code) if code == Self::RESOURCE_TEMPORARILY_UNAVAILABLE_CODE => {
+                    bail!("acquire file lock error, there has another process running, please stop it first");
+                }
+                _ => {
+                    return Err(err).context("acquire file lock error");
+                }
+            },
+        };
+
+        // Write current pid to file lock.
+        let pid = process::id();
+        let pid = format!("{pid}");
+
+        file_lock
+            .file
+            .write_all(pid.as_bytes())
+            .with_context(|| format!("write pid to lock file {}", path.display()))?;
+        file_lock
+            .file
+            .flush()
+            .with_context(|| format!("flush pid to lock file {}", path.display()))?;
+
+        // The file lock will be released after file_lock dropped.
+        Ok(GlobalLock {
+            path,
+            _file_lock: file_lock,
+        })
+    }
+}
+
+impl Drop for GlobalLock {
+    fn drop(&mut self) {
+        if let Err(e) = fs::remove_file(&self.path) {
+            warn!("Remove global lock file failed: {:#}", e);
+        }
+    }
+}
 
 pub fn read_file_lock(path: &str) -> Result<Option<Vec<u8>>> {
     let lock_opts = file_lock::FileOptions::new().read(true);

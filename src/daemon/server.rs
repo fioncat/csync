@@ -7,6 +7,7 @@ use log::info;
 use sd_notify::NotifyState;
 use tokio::sync::mpsc;
 
+use crate::filelock::GlobalLock;
 use crate::humanize::human_bytes;
 use crate::imghdr::is_data_image;
 
@@ -14,6 +15,8 @@ pub struct DaemonServer {
     ctx: Arc<DaemonContext>,
 
     port: u16,
+
+    lock: Option<GlobalLock>,
 }
 
 pub struct DaemonContext {
@@ -23,7 +26,15 @@ pub struct DaemonContext {
 
 impl DaemonServer {
     pub fn new(ctx: Arc<DaemonContext>, port: u16) -> Self {
-        Self { ctx, port }
+        Self {
+            ctx,
+            port,
+            lock: None,
+        }
+    }
+
+    pub fn set_global_lock(&mut self, lock: GlobalLock) {
+        self.lock = Some(lock);
     }
 
     pub async fn run(self) -> Result<()> {
