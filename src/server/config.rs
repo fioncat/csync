@@ -23,9 +23,6 @@ pub struct ServerConfig {
     #[serde(default = "ServerConfig::default_key_path")]
     pub key_path: String,
 
-    #[serde(default = "ServerConfig::default_allow_insecure_client")]
-    pub allow_insecure_client: bool,
-
     #[serde(default = "ServerConfig::default_keep_alive_secs")]
     pub keep_alive_secs: u64,
 
@@ -58,7 +55,6 @@ impl CommonConfig for ServerConfig {
             ssl: Self::default_ssl(),
             cert_path: Self::default_cert_path(),
             key_path: Self::default_key_path(),
-            allow_insecure_client: Self::default_allow_insecure_client(),
             keep_alive_secs: Self::default_keep_alive_secs(),
             workers: Self::default_workers(),
             payload_limit_mib: Self::default_payload_limit_mib(),
@@ -128,10 +124,6 @@ impl ServerConfig {
 
     pub fn default_key_path() -> String {
         String::new()
-    }
-
-    pub fn default_allow_insecure_client() -> bool {
-        false
     }
 
     pub fn default_keep_alive_secs() -> u64 {

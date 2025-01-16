@@ -1,6 +1,5 @@
 bind = "127.0.0.1:7883"
 ssl = false
-allow_insecure_client = true
 
 [authn]
 admin_allow_list = ["127.0.0.1"]

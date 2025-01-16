@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use log::warn;
-use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod, SslVerifyMode};
+use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod};
 
 use crate::secret::factory::SecretFactory;
 use crate::server::authn::factory::AuthnFactory;
@@ -61,12 +60,6 @@ impl ServerFactory {
         builder
             .set_certificate_chain_file(&self.cfg.cert_path)
             .context("load ssl cert file")?;
-
-        if !self.cfg.allow_insecure_client {
-            builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
-        } else {
-            warn!("Allow insecure client. THIS IS DANGEROUS, DO NOT USE IN PRODUCTION");
-        }
 
         Ok(Some(builder))
     }
