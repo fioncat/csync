@@ -6,6 +6,7 @@ use crate::client::config::ClientConfig;
 use crate::config::CommonConfig;
 use crate::daemon::config::DaemonConfig;
 use crate::daemon::factory::DaemonFactory;
+use crate::filelock::GlobalLock;
 use crate::types::server::Server;
 
 use super::{ConfigArgs, LogArgs, ServerCommand};
@@ -28,6 +29,9 @@ impl ServerCommand for DaemonArgs {
         self.log.init()?;
         let ps = self.config.build_path_set()?;
 
+        let lock_path = ps.data_path.join("daemon.lock");
+        let lock = GlobalLock::acquire(lock_path)?;
+
         let daemon_cfg: DaemonConfig = ps.load_config("daemon", DaemonConfig::default)?;
         let client_cfg: ClientConfig = ps.load_config("client", ClientConfig::default)?;
 
@@ -41,7 +45,8 @@ impl ServerCommand for DaemonArgs {
             image_sync.start();
         }
 
-        let srv = factory.build_server(ctx);
+        let mut srv = factory.build_server(ctx);
+        srv.set_global_lock(lock);
 
         Ok(Server::Daemon(srv))
     }
