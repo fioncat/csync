@@ -1,9 +1,9 @@
 use anyhow::Result;
-use chrono::Local;
 use rusqlite::types::Value;
 use rusqlite::{params, params_from_iter, Connection, Transaction};
 
 use crate::server::db::ImageRecord;
+use crate::time::current_timestamp;
 use crate::types::request::Query;
 
 const CREATE_TABLES: &str = r#"
@@ -27,7 +27,7 @@ pub fn create_image_tables(conn: &Connection) -> Result<()> {
 }
 
 pub fn create_image(tx: &Transaction, mut image: ImageRecord) -> Result<ImageRecord> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     tx.execute(
         "INSERT INTO image (data, hash, size, owner, create_time) VALUES (?, ?, ?, ?, ?)",
         params![image.data, image.hash, image.size, image.owner, now],

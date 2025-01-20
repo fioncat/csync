@@ -1,8 +1,8 @@
 use anyhow::{bail, Context, Result};
-use chrono::Local;
 use rusqlite::{params, Connection, Transaction};
 
 use crate::server::db::{RoleRecord, UserRecord};
+use crate::time::current_timestamp;
 use crate::types::user::RoleRule;
 
 const CREATE_TABLES: &str = r#"
@@ -40,7 +40,7 @@ pub fn create_user_tables(conn: &Connection) -> Result<()> {
 
 /// Creates a new user with the given name, password and salt
 pub fn create_user(tx: &Transaction, user: &UserRecord) -> Result<()> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     tx.execute(
         "INSERT INTO user (name, hash, salt, create_time, update_time) VALUES (?, ?, ?, ?, ?)",
         params![user.name, user.hash, user.salt, now, now],
@@ -93,7 +93,7 @@ pub fn is_user_exists(tx: &Transaction, name: &str) -> Result<bool> {
 
 /// Updates the password and salt for an existing user
 pub fn update_user_password(tx: &Transaction, name: &str, hash: &str, salt: &str) -> Result<()> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     tx.execute(
         "UPDATE user SET hash = ?, salt = ?, update_time = ? WHERE name = ?",
         params![hash, salt, now, name],
@@ -103,7 +103,7 @@ pub fn update_user_password(tx: &Transaction, name: &str, hash: &str, salt: &str
 
 /// Updates the last update time for a user
 pub fn update_user_time(tx: &Transaction, name: &str) -> Result<()> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     tx.execute(
         "UPDATE user SET update_time = ? WHERE name = ?",
         params![now, name],
@@ -119,7 +119,7 @@ pub fn delete_user(tx: &Transaction, name: &str) -> Result<()> {
 
 /// Assigns a role to a user
 pub fn create_user_role(tx: &Transaction, name: &str, role: &str) -> Result<()> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     tx.execute(
         "INSERT INTO user_role (user_name, role_name, create_time) VALUES (?, ?, ?)",
         params![name, role, now],
@@ -175,7 +175,7 @@ pub fn list_user_roles(tx: &Transaction, name: &str) -> Result<Vec<RoleRecord>> 
 
 /// Creates a new role into the database
 pub fn create_role(tx: &Transaction, role: &RoleRecord) -> Result<()> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     let rules = serde_json::to_string(&role.rules).context("failed to serialize rules")?;
     tx.execute(
         "INSERT INTO role (name, rules, create_time, update_time) VALUES (?, ?, ?, ?)",
@@ -233,7 +233,7 @@ pub fn is_role_exists(tx: &Transaction, name: &str) -> Result<bool> {
 
 /// Updates the rules for an existing role
 pub fn update_role_rules(tx: &Transaction, role: &str, rules: &[RoleRule]) -> Result<()> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     let rules = serde_json::to_string(&rules).context("failed to serialize rules")?;
     tx.execute(
         "UPDATE role SET rules = ?, update_time = ? WHERE name = ?",

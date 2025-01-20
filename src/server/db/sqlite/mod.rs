@@ -256,3 +256,36 @@ impl Transaction for SqliteTransaction<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use crate::server::db::tests::run_all_tests;
+    use crate::server::db::{Database, UnionConnection};
+
+    use super::*;
+
+    #[test]
+    fn test_memory() {
+        let sqlite = Sqlite::memory().unwrap();
+        let conn = UnionConnection::Sqlite(sqlite);
+        let db = Database::new(conn, None);
+
+        run_all_tests(&db);
+    }
+
+    #[test]
+    fn test_file() {
+        let path = "/tmp/test_csync.db";
+        let _ = fs::remove_file(path);
+
+        let sqlite = Sqlite::open(Path::new(path)).unwrap();
+        let conn = UnionConnection::Sqlite(sqlite);
+        let db = Database::new(conn, None);
+
+        run_all_tests(&db);
+
+        fs::remove_file(path).unwrap();
+    }
+}

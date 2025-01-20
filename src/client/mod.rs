@@ -16,6 +16,7 @@ use thiserror::Error;
 use crate::imghdr::is_data_image;
 use crate::secret::aes::AesSecret;
 use crate::secret::{base64_decode, Secret};
+use crate::time::current_timestamp;
 use crate::types::file::FileInfo;
 use crate::types::healthz::HealthzResponse;
 use crate::types::image::{Image, ENABLE_SECRET};
@@ -150,7 +151,7 @@ impl Client {
             )));
         }
 
-        let now = now.timestamp() as u64;
+        let now = current_timestamp();
         let delta = if now > resp.now {
             now - resp.now
         } else {

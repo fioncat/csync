@@ -1,9 +1,9 @@
 use anyhow::Result;
-use chrono::Local;
 use rusqlite::types::Value;
 use rusqlite::{params, params_from_iter, Connection, Transaction};
 
 use crate::server::db::FileRecord;
+use crate::time::current_timestamp;
 use crate::types::request::Query;
 
 const CREATE_TABLES: &str = r#"
@@ -28,7 +28,7 @@ pub fn create_file_tables(conn: &Connection) -> Result<()> {
 }
 
 pub fn create_file(tx: &Transaction, mut file: FileRecord) -> Result<FileRecord> {
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     tx.execute(
         "INSERT INTO file (name, data, hash, size, mode, owner, create_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
         params![file.name, file.data, file.hash, file.size, file.mode, file.owner, now],

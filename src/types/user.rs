@@ -42,7 +42,7 @@ pub struct Role {
     pub update_time: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoleRule {
     pub resources: HashSet<String>,
     pub verbs: HashSet<String>,

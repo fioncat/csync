@@ -1,7 +1,8 @@
 use anyhow::{bail, Result};
-use chrono::Local;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+
+use crate::time::current_timestamp;
 
 use super::{TokenGenerator, TokenResponse, TokenValidator};
 
@@ -39,7 +40,7 @@ impl JwtTokenGenerator {
 
 impl TokenGenerator for JwtTokenGenerator {
     fn generate_token(&self, user: String) -> Result<TokenResponse> {
-        let now = Local::now().timestamp() as usize;
+        let now = current_timestamp() as usize;
 
         let claims = Claims {
             // TODO: now we don't know how to use audience, left it empty now, we will use
@@ -97,7 +98,7 @@ impl TokenValidator for JwtTokenValidator {
             bail!("validate jwt token failed: empty subject");
         }
 
-        let now = Local::now().timestamp() as usize;
+        let now = current_timestamp() as usize;
         if now >= claims.exp {
             bail!("validate jwt token failed: token expired");
         }

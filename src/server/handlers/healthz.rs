@@ -2,6 +2,7 @@ use actix_web::HttpRequest;
 use chrono::Local;
 
 use crate::server::response::Response;
+use crate::time::current_timestamp;
 use crate::types::healthz::HealthzResponse;
 
 use super::Handler;
@@ -18,7 +19,7 @@ impl Handler for HealthzHandler {
     fn handle(&self, _path: &str, req: HttpRequest, _body: Option<Vec<u8>>) -> Response {
         let local = Local::now();
         let offset = format!("{}", local.offset());
-        let now = local.timestamp() as u64;
+        let now = current_timestamp();
         let response = HealthzResponse {
             now,
             time_zone: offset,
