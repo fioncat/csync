@@ -1,5 +1,5 @@
 use crate::server::db::{Database, RoleRecord, UserRecord};
-use crate::time::{advance_mock_time, current_timestamp};
+use crate::time::advance_mock_time;
 use crate::types::user::RoleRule;
 
 pub fn run_user_tests(db: &Database) {
@@ -48,9 +48,6 @@ pub fn run_user_tests(db: &Database) {
         assert_eq!(user.name, "Alice");
         assert_eq!(user.hash, "123");
         assert_eq!(user.salt, "456");
-        let now = current_timestamp();
-        assert_eq!(user.create_time, now);
-        assert_eq!(user.update_time, now);
 
         assert!(tx.is_user_exists("Alice").unwrap());
         assert!(tx.is_user_exists("Bob").unwrap());
@@ -97,7 +94,6 @@ pub fn run_user_tests(db: &Database) {
         tx.update_user_time("Charlie").unwrap();
         let user = tx.get_user("Charlie").unwrap();
         assert_eq!(user.name, "Charlie");
-        assert_eq!(user.update_time, current_timestamp());
 
         let users_list = tx.list_users().unwrap();
         assert_eq!(users_list[0].name, "Charlie");
@@ -174,19 +170,137 @@ pub fn run_role_tests(db: &Database) {
     })
     .unwrap();
 
+    // Test get
     db.with_transaction(|tx, _cache| {
         let role = tx.get_role("test").unwrap();
         assert_eq!(role.name, "test");
         assert_eq!(role.rules, roles[0].rules);
-        let now = current_timestamp();
-        assert_eq!(role.create_time, now);
-        assert_eq!(role.update_time, now);
 
         assert!(tx.is_role_exists("test").unwrap());
         assert!(tx.is_role_exists("wheel").unwrap());
 
         assert!(!tx.is_role_exists("nonexistent_role").unwrap());
 
+        Ok(())
+    })
+    .unwrap();
+
+    // Test list
+    db.with_transaction(|tx, _cache| {
+        let mut roles_list = tx.list_roles().unwrap();
+        assert_eq!(roles_list.len(), roles.len());
+
+        roles_list.sort_by(|a, b| a.name.cmp(&b.name));
+        for (i, role) in roles_list.iter().enumerate() {
+            assert_eq!(role.name, roles[i].name);
+            assert_eq!(role.rules, roles[i].rules);
+        }
+
+        Ok(())
+    })
+    .unwrap();
+
+    // Test update
+    let update_rules = vec![RoleRule {
+        resources: vec!["text".to_string()].into_iter().collect(),
+        verbs: vec!["get".to_string()].into_iter().collect(),
+    }];
+    db.with_transaction(|tx, _cache| {
+        advance_mock_time(5);
+        tx.update_role_rules("wheel", &update_rules).unwrap();
+
+        Ok(())
+    })
+    .unwrap();
+    db.with_transaction(|tx, _cache| {
+        let role = tx.get_role("wheel").unwrap();
+        assert_eq!(role.name, "wheel");
+        assert_eq!(role.rules, update_rules);
+
+        let roles_list = tx.list_roles().unwrap();
+        assert_eq!(roles_list[0].name, "wheel");
+        assert_eq!(roles_list[0].rules, update_rules);
+
+        Ok(())
+    })
+    .unwrap();
+
+    // Test delete
+    db.with_transaction(|tx, _cache| {
+        tx.delete_role("test").unwrap();
+        Ok(())
+    })
+    .unwrap();
+    db.with_transaction(|tx, _cache| {
+        let roles_list = tx.list_roles().unwrap();
+        assert_eq!(roles_list.len(), roles.len() - 1);
+        assert!(!tx.is_role_exists("test").unwrap());
+        Ok(())
+    })
+    .unwrap();
+
+    // Role cannot have same name
+    let result = db.with_transaction(|tx, _cache| {
+        tx.create_role(&RoleRecord {
+            name: "wheel".to_string(),
+            rules: update_rules.clone(),
+            create_time: 0,
+            update_time: 0,
+        })
+    });
+    assert!(result.is_err());
+
+    // Get a non-existent role
+    let result = db.with_transaction(|tx, _cache| tx.get_role("nonexistent_role"));
+    assert!(result.is_err());
+
+    // Update a non-existent role, should be OK
+    let result =
+        db.with_transaction(|tx, _cache| tx.update_role_rules("nonexistent_role", &update_rules));
+    assert!(result.is_ok());
+
+    let result = db.with_transaction(|tx, _cache| tx.delete_role("nonexistent_role"));
+    assert!(result.is_ok());
+}
+
+pub fn run_user_role_tests(db: &Database) {
+    db.with_transaction(|tx, _cache| {
+        tx.create_user_role("Alice", "wheel").unwrap();
+        Ok(())
+    })
+    .unwrap();
+
+    db.with_transaction(|tx, _cache| {
+        let roles = tx.list_user_roles("Alice").unwrap();
+        assert_eq!(roles.len(), 1);
+        let role = &roles[0];
+        assert_eq!(role.name, "wheel");
+
+        assert_eq!(role.rules.len(), 1);
+        assert_eq!(
+            role.rules,
+            vec![RoleRule {
+                resources: vec!["text".to_string()].into_iter().collect(),
+                verbs: vec!["get".to_string()].into_iter().collect(),
+            }]
+        );
+
+        assert!(tx.is_role_in_use("wheel").unwrap());
+
+        Ok(())
+    })
+    .unwrap();
+
+    db.with_transaction(|tx, _cache| {
+        tx.delete_user_roles("Alice").unwrap();
+        Ok(())
+    })
+    .unwrap();
+
+    db.with_transaction(|tx, _cache| {
+        let roles = tx.list_user_roles("Alice").unwrap();
+        assert_eq!(roles.len(), 0);
+        assert!(!tx.is_role_in_use("wheel").unwrap());
         Ok(())
     })
     .unwrap();

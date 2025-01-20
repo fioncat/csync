@@ -156,7 +156,7 @@ pub struct UserRecord {
 }
 
 /// Record structure for role information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RoleRecord {
     /// Role's unique name
     pub name: String,
@@ -169,7 +169,7 @@ pub struct RoleRecord {
 }
 
 /// Record structure for text content
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TextRecord {
     /// Unique text ID
     pub id: u64,
@@ -186,7 +186,7 @@ pub struct TextRecord {
 }
 
 /// Record structure for image content
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImageRecord {
     /// Unique image ID
     pub id: u64,
@@ -203,7 +203,7 @@ pub struct ImageRecord {
 }
 
 /// Record structure for file content
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FileRecord {
     /// Unique file ID
     pub id: u64,
@@ -281,7 +281,7 @@ impl Database {
     ///     // Optionally use cache for frequently accessed data
     ///     cache.save_latest_text("Alice", text.clone())?;
     ///
-    ///     Ok(user)
+    ///     Ok(text)
     /// })?;
     /// ```
     ///

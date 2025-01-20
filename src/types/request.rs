@@ -57,6 +57,18 @@ impl ResourceRequest {
 }
 
 impl Query {
+    pub fn default() -> Self {
+        Self {
+            offset: None,
+            limit: None,
+            search: None,
+            since: None,
+            until: None,
+            owner: None,
+            hash: None,
+        }
+    }
+
     pub fn new_hash(user: &str, hash: &str) -> Self {
         Self {
             offset: None,
