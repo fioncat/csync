@@ -7,9 +7,13 @@ use super::bearer_token::BearerTokenAuthenticator;
 use super::token::TokenValidator;
 use super::{Authenticator, AuthnResponse, AuthnUserInfo};
 
+/// Union type that combines different authenticator implementations.
 pub enum UnionAuthenticator<T: TokenValidator> {
+    /// Bearer token authentication using the Authorization header
     BearerToken(BearerTokenAuthenticator<T>),
+    /// Admin privilege validation based on IP allow list
     Admin(AdminAuthenticator),
+    /// Anonymous access fallback
     Anonymous(AnonymousAuthenticator),
 }
 

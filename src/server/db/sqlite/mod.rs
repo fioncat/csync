@@ -20,21 +20,30 @@ use super::FileRecord;
 use super::ImageRecord;
 use super::{Connection, RoleRecord, Transaction, UserRecord};
 
+/// SQLite-based database implementation. This is the simplest database type,
+/// perfect for single-node deployments. Supports both file-based and in-memory
+/// database types.
 pub struct Sqlite {
     conn: RawConnection,
 }
 
+/// SQLite transaction for executing database operations
 pub struct SqliteTransaction<'a> {
     tx: RawTransaction<'a>,
 }
 
 impl Sqlite {
+    /// Opens a SQLite database file. Creates one if it doesn't exist.
+    /// Also initializes all required database tables.
     pub fn open(path: &Path) -> Result<Self> {
         let conn = RawConnection::open(path)?;
         Self::init_tables(&conn)?;
         Ok(Self { conn })
     }
 
+    /// Creates a new in-memory database. Database content will be lost when the program exits.
+    /// Also initializes all required database tables.
+    /// This method is recommended for testing only.
     pub fn memory() -> Result<Self> {
         let conn = RawConnection::open_in_memory()?;
         Self::init_tables(&conn)?;

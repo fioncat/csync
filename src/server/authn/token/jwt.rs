@@ -20,12 +20,26 @@ struct Claims {
     pub sub: String,         // Optional. Subject of the token (user identifier)
 }
 
+/// JSON Web Token generator for creating signed tokens.
+/// For more details, see: https://en.wikipedia.org/wiki/JSON_Web_Token
 pub struct JwtTokenGenerator {
     key: EncodingKey, // Private key for signing
-    expiry: usize,
+    expiry: usize,    // Token expiration time in seconds
 }
 
 impl JwtTokenGenerator {
+    /// Creates a new JWT token generator that signs tokens using an RSA private key.
+    ///
+    /// # Arguments
+    /// * `private_key` - RSA private key in PEM format
+    /// * `expiry` - Token expiration time in seconds
+    ///
+    /// # Example
+    /// ```
+    /// let private_key = include_bytes!("private_key.pem");
+    /// let generator = JwtTokenGenerator::new(private_key, 3600)?; // 1 hour expiry
+    /// let token = generator.generate_token("user123".to_string())?;
+    /// ```
     pub fn new(private_key: &[u8], expiry: u64) -> Result<Self> {
         let key = match EncodingKey::from_rsa_pem(private_key) {
             Ok(key) => key,
@@ -69,11 +83,24 @@ impl TokenGenerator for JwtTokenGenerator {
     }
 }
 
+/// JSON Web Token validator for verifying and decoding tokens.
+/// Validates token signature, expiration time, and other claims.
 pub struct JwtTokenValidator {
-    key: DecodingKey,
+    key: DecodingKey, // Public key for verification
 }
 
 impl JwtTokenValidator {
+    /// Creates a new JWT token validator using an RSA public key.
+    ///
+    /// # Arguments
+    /// * `public_key` - RSA public key in PEM format
+    ///
+    /// # Example
+    /// ```
+    /// let public_key = include_bytes!("public_key.pem");
+    /// let validator = JwtTokenValidator::new(public_key)?;
+    /// let user = validator.validate_token(token)?; // Returns username if token is valid
+    /// ```
     pub fn new(public_key: &[u8]) -> Result<Self> {
         let key = match DecodingKey::from_rsa_pem(public_key) {
             Ok(key) => key,

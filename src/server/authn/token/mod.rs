@@ -3,17 +3,44 @@ pub mod factory;
 pub mod jwt;
 
 #[cfg(test)]
-mod simple;
+pub mod simple;
 
 use anyhow::Result;
 
 use crate::types::token::TokenResponse;
 
+/// Token generator interface for creating authentication tokens.
+///
+/// This trait defines the standard way to generate authentication tokens for users.
+/// Implementations should ensure that generated tokens are secure and contain
+/// necessary user information for validation.
 pub trait TokenGenerator {
+    /// Generates a new authentication token for the specified user.
+    ///
+    /// # Arguments
+    /// * `user` - Username to generate token for
+    ///
+    /// # Returns
+    /// Returns a `TokenResponse` containing:
+    /// - The username
+    /// - The generated token
+    /// - Token expiration timestamp (if applicable)
     fn generate_token(&self, user: String) -> Result<TokenResponse>;
 }
 
+/// Token validator interface for verifying authentication tokens.
+///
+/// This trait defines the standard way to validate authentication tokens.
+/// Implementations should verify the token's authenticity, expiration,
+/// and extract the associated username.
 pub trait TokenValidator {
+    /// Validates a token and extracts the associated username.
+    ///
+    /// # Arguments
+    /// * `token` - The token string to validate
+    ///
+    /// # Returns
+    /// Returns the username associated with the token if validation succeeds.
     fn validate_token(&self, token: &str) -> Result<String>;
 }
 

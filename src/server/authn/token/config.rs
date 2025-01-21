@@ -3,14 +3,23 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{expandenv, CommonConfig, PathSet};
 
+/// Token configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TokenConfig {
+    /// Path to RSA public key (PEM format) for token generation.
+    /// Default: {data_path}/token_public.pem
+    /// If not exists, a new RSA key pair will be generated.
     #[serde(default = "TokenConfig::default_key_path")]
     pub public_key_path: String,
 
+    /// Path to RSA private key (PEM format) for token validation.
+    /// Default: {data_path}/token_private.pem
+    /// If not exists, a new RSA key pair will be generated.
     #[serde(default = "TokenConfig::default_key_path")]
     pub private_key_path: String,
 
+    /// Token expiration time in seconds.
+    /// Default: 3600 seconds (1 hour). Must be greater than 0.
     #[serde(default = "TokenConfig::default_expiry")]
     pub expiry: u64,
 
