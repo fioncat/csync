@@ -13,6 +13,9 @@ impl SimpleToken {
 
 impl TokenGenerator for SimpleToken {
     fn generate_token(&self, user: String) -> Result<TokenResponse> {
+        if user.is_empty() {
+            bail!("generate simple token failed: empty user");
+        }
         Ok(TokenResponse {
             user: user.clone(),
             token: format!("simple-token-{user}"),
@@ -27,5 +30,18 @@ impl TokenValidator for SimpleToken {
             Some(user) => Ok(user.to_string()),
             None => bail!("invalid simple token"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::server::authn::token::tests::run_token_tests;
+
+    use super::*;
+
+    #[test]
+    fn test_simple() {
+        let token = SimpleToken::new();
+        run_token_tests(&token, &token);
     }
 }

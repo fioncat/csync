@@ -1,5 +1,8 @@
 mod memory;
 
+#[cfg(test)]
+mod tests;
+
 pub mod config;
 pub mod factory;
 

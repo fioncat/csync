@@ -274,7 +274,7 @@ pub fn run_image_tests(db: &Database) {
     .unwrap();
 }
 
-fn mock_image(data: &str) -> ImageRecord {
+pub fn mock_image(data: &str) -> ImageRecord {
     let data = data.as_bytes().to_vec();
     let hash = Sha256::digest(&data);
     let hash = format!("{:x}", hash);

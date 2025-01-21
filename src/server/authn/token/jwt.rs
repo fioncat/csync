@@ -40,6 +40,10 @@ impl JwtTokenGenerator {
 
 impl TokenGenerator for JwtTokenGenerator {
     fn generate_token(&self, user: String) -> Result<TokenResponse> {
+        if user.is_empty() {
+            bail!("generate jwt token failed: empty user");
+        }
+
         let now = current_timestamp() as usize;
 
         let claims = Claims {
@@ -108,5 +112,30 @@ impl TokenValidator for JwtTokenValidator {
         }
 
         Ok(claims.sub)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::server::authn::token::tests::{run_token_expiry_tests, run_token_tests};
+
+    use super::*;
+
+    #[test]
+    fn test_jwt() {
+        let private_key = include_bytes!("testdata/private_key.pem");
+        let public_key = include_bytes!("testdata/public_key.pem");
+
+        let jwt_generator = JwtTokenGenerator::new(private_key, 36000).unwrap();
+        let jwt_validator = JwtTokenValidator::new(public_key).unwrap();
+
+        run_token_tests(&jwt_generator, &jwt_validator);
+
+        let jwt_generator = JwtTokenGenerator::new(private_key, 100).unwrap();
+        run_token_expiry_tests(&jwt_generator, &jwt_validator, 100);
+
+        let invalid_key = "invalid key".as_bytes();
+        assert!(JwtTokenGenerator::new(invalid_key, 36000).is_err());
+        assert!(JwtTokenValidator::new(invalid_key).is_err());
     }
 }

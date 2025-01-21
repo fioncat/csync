@@ -215,7 +215,7 @@ pub fn delete_files_before_time(tx: &Transaction, time: u64) -> Result<usize> {
 
 pub fn delete_files_batch(tx: &Transaction, ids: &[u64]) -> Result<usize> {
     let placeholders = vec!["?"; ids.len()].join(",");
-    let sql = format!("DELETE FROM file WHERE name IN ({})", placeholders);
+    let sql = format!("DELETE FROM file WHERE id IN ({})", placeholders);
     let count = tx.execute(&sql, params_from_iter(ids.iter()))?;
     Ok(count)
 }

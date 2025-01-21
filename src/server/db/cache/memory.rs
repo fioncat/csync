@@ -179,3 +179,16 @@ impl Cache for MemoryCache {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::server::db::cache::tests::run_all_cache_tests;
+
+    use super::*;
+
+    #[test]
+    fn test_memory() {
+        let cache = MemoryCache::new();
+        run_all_cache_tests(&cache);
+    }
+}

@@ -261,7 +261,7 @@ impl Transaction for SqliteTransaction<'_> {
 mod tests {
     use std::fs;
 
-    use crate::server::db::tests::run_all_tests;
+    use crate::server::db::tests::run_all_db_tests;
     use crate::server::db::{Database, UnionConnection};
 
     use super::*;
@@ -272,7 +272,7 @@ mod tests {
         let conn = UnionConnection::Sqlite(sqlite);
         let db = Database::new(conn, None);
 
-        run_all_tests(&db);
+        run_all_db_tests(&db);
     }
 
     #[test]
@@ -284,7 +284,7 @@ mod tests {
         let conn = UnionConnection::Sqlite(sqlite);
         let db = Database::new(conn, None);
 
-        run_all_tests(&db);
+        run_all_db_tests(&db);
 
         fs::remove_file(path).unwrap();
     }
