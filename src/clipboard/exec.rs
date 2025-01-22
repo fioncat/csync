@@ -3,6 +3,15 @@ use std::process::{Command, Stdio};
 
 use anyhow::{bail, Context, Result};
 
+/// Checks if a clipboard command is available and working
+/// 
+/// # Arguments
+/// * `name` - Name of the command to check (e.g., "pbcopy", "wl-copy")
+/// * `args` - Command line arguments for version/help check
+/// 
+/// # Returns
+/// - `Ok(())` if command exists and works
+/// - `Err` if command is not found or not working
 pub fn check_command(name: &str, args: &[&str]) -> Result<()> {
     if execute_read_command(name, args).is_err() {
         bail!("It had error to execute clipboard command '{name}', please check it is ready");
@@ -10,6 +19,16 @@ pub fn check_command(name: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// Executes a command to write data to clipboard
+/// 
+/// # Arguments
+/// * `name` - Name of the clipboard write command (e.g., "pbcopy", "wl-copy")
+/// * `args` - Optional command line arguments
+/// * `data` - Data to write to clipboard
+/// 
+/// # Returns
+/// - `Ok(())` if write succeeds
+/// - `Err` if command fails or writing fails
 pub fn execute_write_command(name: &str, args: &[&str], data: &[u8]) -> Result<()> {
     let mut cmd = Command::new(name);
 
@@ -41,6 +60,20 @@ pub fn execute_write_command(name: &str, args: &[&str], data: &[u8]) -> Result<(
     Ok(())
 }
 
+/// Executes a command to read data from clipboard
+/// 
+/// # Arguments
+/// * `name` - Name of the clipboard read command (e.g., "pbpaste", "wl-paste")
+/// * `args` - Optional command line arguments
+/// 
+/// # Returns
+/// - `Ok(Vec<u8>)` containing the clipboard data if read succeeds
+/// - `Ok(Vec::new())` if clipboard is empty (special case for some commands)
+/// - `Err` if command fails or reading fails
+/// 
+/// # Special Cases
+/// Handles the special case where some clipboard commands return exit code 1
+/// with "Nothing is copied" message to indicate empty clipboard
 pub fn execute_read_command(name: &str, args: &[&str]) -> Result<Vec<u8>> {
     let mut cmd = Command::new(name);
 

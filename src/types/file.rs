@@ -6,21 +6,31 @@ use crate::display::TerminalDisplay;
 use crate::humanize::human_bytes;
 use crate::time::format_since;
 
+/// File information stored on the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileInfo {
+    /// File ID
     pub id: u64,
 
+    /// File name
     pub name: String,
 
+    /// File content hash using sha256
     pub hash: String,
 
+    /// File size
     pub size: u64,
 
+    /// File unix mode
     pub mode: u32,
 
+    /// File owner
     pub owner: String,
+
+    /// File creation time
     pub create_time: u64,
 
+    /// Whether the file content is encrypted
     pub secret: bool,
 }
 
