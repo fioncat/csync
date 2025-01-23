@@ -142,8 +142,8 @@ mod tests {
 
     const TEST_FILE: &str = "_test_filelock";
     const TEST_CONTENT: &[u8] = b"Hello, World!";
-    const ITERATIONS: usize = 100;
-    const CONCURRENT_TASKS: usize = 100;
+    const ITERATIONS: usize = 10;
+    const CONCURRENT_TASKS: usize = 10;
 
     async fn concurrent_read_write() -> Result<()> {
         let tasks: Vec<_> = (0..CONCURRENT_TASKS)

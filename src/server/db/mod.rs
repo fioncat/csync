@@ -256,6 +256,16 @@ impl Database {
         }
     }
 
+    #[cfg(test)]
+    pub fn new_test() -> Self {
+        use cache::memory::MemoryCache;
+
+        let conn = UnionConnection::Sqlite(Sqlite::memory().unwrap());
+        let cache = UnionCache::Memory(MemoryCache::new());
+
+        Self::new(conn, Some(cache))
+    }
+
     /// Executes a function within a transaction context with optional caching support.
     ///
     /// This method provides a safe way to execute database operations within a transaction:
