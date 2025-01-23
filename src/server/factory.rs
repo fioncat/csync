@@ -1,6 +1,7 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod};
 
 use crate::secret::factory::SecretFactory;
@@ -53,6 +54,16 @@ impl ServerFactory {
 
         let mut builder =
             SslAcceptor::mozilla_intermediate(SslMethod::tls()).context("init ssl acceptor")?;
+
+        let key_path = PathBuf::from(&self.cfg.key_path);
+        if !key_path.exists() {
+            bail!("ssl key file not found: {:?}", key_path);
+        }
+
+        let cert_path = PathBuf::from(&self.cfg.cert_path);
+        if !cert_path.exists() {
+            bail!("ssl cert file not found: {:?}", cert_path);
+        }
 
         builder
             .set_private_key_file(&self.cfg.key_path, openssl::ssl::SslFiletype::PEM)

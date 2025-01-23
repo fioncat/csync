@@ -68,16 +68,19 @@ impl AuthnFactory {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::path::PathBuf;
 
     use crate::config::CommonConfig;
+    use crate::dirs;
     use crate::server::authn::token::config::TokenConfig;
 
     use super::*;
 
     fn mock_token_factory() -> TokenFactory {
+        dirs::ensure_dir_exists(&PathBuf::from("testdata/pki")).unwrap();
         let cfg = TokenConfig {
-            public_key_path: "testdata/public_key.pem".to_string(),
-            private_key_path: "testdata/private_key.pem".to_string(),
+            public_key_path: "testdata/pki/token_public.pem".to_string(),
+            private_key_path: "testdata/pki/token_private.pem".to_string(),
             expiry: 3600,
             generate_if_not_exists: false,
         };
