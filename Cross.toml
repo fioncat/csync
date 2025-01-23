@@ -1,0 +1,12 @@
+# We need to install libssl before compiling.
+# See: https://github.com/cross-rs/cross/wiki/Recipes#openssl
+[target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes libssl-dev"
+]
+
+[target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture arm64",
+    "apt-get update && apt-get install --assume-yes libssl-dev:arm64"
+]
