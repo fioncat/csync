@@ -7,6 +7,42 @@ use sha2::Sha256;
 
 use super::{base64_encode, Secret};
 
+/// AES-256-GCM symmetric encryption implementation.
+///
+/// This struct implements the `Secret` trait using AES-256-GCM for encryption and decryption.
+/// The encryption process:
+/// 1. Generates a random salt (30 bytes)
+/// 2. Derives encryption key using PBKDF2-HMAC-SHA256 with 600 rounds
+/// 3. Generates a random nonce (12 bytes)
+/// 4. Encrypts data using AES-256-GCM
+///
+/// The encrypted data format:
+/// ```text
+/// [30 bytes salt][12 bytes nonce][encrypted data]
+/// ```
+///
+/// The decryption process:
+/// 1. Extracts salt and nonce from the encrypted data
+/// 2. Derives the same encryption key using PBKDF2
+/// 3. Decrypts data using AES-256-GCM
+///
+/// # Examples
+/// ```
+/// use crate::secret::aes::AesSecret;
+/// use crate::secret::Secret;
+///
+/// // Generate a random key
+/// let key = AesSecret::generate_key();
+/// let secret = AesSecret::new(key);
+///
+/// // Encrypt data
+/// let data = b"Hello, World!";
+/// let encrypted = secret.encrypt(data).unwrap();
+///
+/// // Decrypt data
+/// let decrypted = secret.decrypt(&encrypted).unwrap();
+/// assert_eq!(data, &decrypted[..]);
+/// ```
 #[derive(Debug, Clone)]
 pub struct AesSecret {
     key: Vec<u8>,
@@ -21,10 +57,18 @@ impl AesSecret {
 
     const GENERATE_KEY_LENGTH: usize = 100;
 
+    /// Creates a new AES secret with the provided key.
+    ///
+    /// # Arguments
+    /// * `key` - The key used for encryption/decryption
     pub fn new(key: Vec<u8>) -> Self {
         Self { key }
     }
 
+    /// Generates a random base64-encoded key.
+    ///
+    /// # Returns
+    /// A randomly generated key suitable for use with `AesSecret::new()`
     pub fn generate_key() -> Vec<u8> {
         let mut key = vec![0u8; Self::GENERATE_KEY_LENGTH];
         OsRng.fill_bytes(&mut key);
@@ -32,6 +76,13 @@ impl AesSecret {
         key.into_bytes()
     }
 
+    /// Extracts salt and nonce from encrypted data.
+    ///
+    /// # Arguments
+    /// * `data` - Encrypted data containing salt and nonce in the header
+    ///
+    /// # Returns
+    /// A tuple containing the salt and nonce arrays
     fn get_salt_nonce(&self, data: &[u8]) -> ([u8; Self::SALT_LENGTH], [u8; Self::NONCE_LENGTH]) {
         let mut salt = [0u8; Self::SALT_LENGTH];
         let mut nonce = [0u8; Self::NONCE_LENGTH];

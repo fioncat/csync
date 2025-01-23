@@ -6,20 +6,29 @@ use crate::display::TerminalDisplay;
 use crate::humanize::human_bytes;
 use crate::time::format_since;
 
+/// Text stored on the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Text {
+    /// Text ID
     pub id: u64,
 
+    /// Text content, may be None when only metadata is requested
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 
+    /// Text content hash using sha256
     pub hash: String,
 
+    /// Text size in bytes
     pub size: u64,
 
+    /// Text owner
     pub owner: String,
+
+    /// Text creation time
     pub create_time: u64,
 
+    /// Whether the text content is encrypted
     pub secret: bool,
 }
 

@@ -1,3 +1,6 @@
+#[cfg(test)]
+use std::sync::Mutex;
+
 use anyhow::{bail, Result};
 use chrono::{Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 
@@ -9,11 +12,27 @@ const WEEK: u64 = 7 * DAY;
 const MONTH: u64 = 30 * DAY;
 const YEAR: u64 = 365 * DAY;
 
+/// Formats a timestamp into a human-readable duration string.
+///
+/// # Arguments
+/// * `time` - Unix timestamp in seconds
+///
+/// # Returns
+/// A string representing how long ago the timestamp was, e.g. "2 hours ago", "last week", etc.
+/// Returns "never" if timestamp is 0, and "now" if less than 30 seconds ago.
+///
+/// # Examples
+/// ```
+/// use crate::time::format_since;
+/// let now = current_timestamp();
+/// assert_eq!(format_since(now), "now");
+/// assert_eq!(format_since(0), "never");
+/// ```
 pub fn format_since(time: u64) -> String {
     if time == 0 {
         return String::from("never");
     }
-    let now = Local::now().timestamp() as u64;
+    let now = current_timestamp();
     let duration = now.saturating_sub(time);
 
     let unit: &str;
@@ -51,6 +70,20 @@ pub fn format_since(time: u64) -> String {
     }
 }
 
+/// Parses a time string into a Unix timestamp.
+///
+/// # Arguments
+/// * `s` - Time string in one of the following formats:
+///   - Unix timestamp (e.g. "1234567890")
+///   - Date (e.g. "2024-03-20")
+///   - Time (e.g. "15:30:00")
+///   - DateTime (e.g. "2024-03-20 15:30:00")
+///
+/// # Returns
+/// Unix timestamp in seconds
+///
+/// # Errors
+/// Returns error if the input string cannot be parsed in any of the supported formats
 pub fn parse_time(s: &str) -> Result<u64> {
     // First try to parse as u64 timestamp
     if let Ok(timestamp) = s.parse::<u64>() {
@@ -74,9 +107,35 @@ pub fn parse_time(s: &str) -> Result<u64> {
     Ok(local.timestamp() as u64)
 }
 
-/// Get timestamp for n hours before current time
+/// Returns a timestamp for the specified number of hours before current time.
+///
+/// # Arguments
+/// * `hours` - Number of hours to subtract from current time
+///
+/// # Returns
+/// Unix timestamp in seconds
 pub fn get_time_before_hours(hours: u64) -> u64 {
     let now = Local::now();
     let before = now - Duration::hours(hours as i64);
     before.timestamp() as u64
+}
+
+#[cfg(test)]
+static MOCK_TIME: once_cell::sync::Lazy<Mutex<u64>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(Local::now().timestamp() as u64));
+
+#[cfg(test)]
+pub fn advance_mock_time(seconds: u64) {
+    let mut guard = MOCK_TIME.lock().unwrap();
+    *guard += seconds;
+}
+
+#[cfg(test)]
+pub fn current_timestamp() -> u64 {
+    *MOCK_TIME.lock().unwrap()
+}
+
+#[cfg(not(test))]
+pub fn current_timestamp() -> u64 {
+    Local::now().timestamp() as u64
 }

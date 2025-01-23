@@ -1,7 +1,8 @@
 use anyhow::{bail, Result};
-use chrono::Local;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+
+use crate::time::current_timestamp;
 
 use super::{TokenGenerator, TokenResponse, TokenValidator};
 
@@ -19,12 +20,26 @@ struct Claims {
     pub sub: String,         // Optional. Subject of the token (user identifier)
 }
 
+/// JSON Web Token generator for creating signed tokens.
+/// For more details, see: https://en.wikipedia.org/wiki/JSON_Web_Token
 pub struct JwtTokenGenerator {
     key: EncodingKey, // Private key for signing
-    expiry: usize,
+    expiry: usize,    // Token expiration time in seconds
 }
 
 impl JwtTokenGenerator {
+    /// Creates a new JWT token generator that signs tokens using an RSA private key.
+    ///
+    /// # Arguments
+    /// * `private_key` - RSA private key in PEM format
+    /// * `expiry` - Token expiration time in seconds
+    ///
+    /// # Example
+    /// ```
+    /// let private_key = include_bytes!("private_key.pem");
+    /// let generator = JwtTokenGenerator::new(private_key, 3600)?; // 1 hour expiry
+    /// let token = generator.generate_token("user123".to_string())?;
+    /// ```
     pub fn new(private_key: &[u8], expiry: u64) -> Result<Self> {
         let key = match EncodingKey::from_rsa_pem(private_key) {
             Ok(key) => key,
@@ -39,7 +54,11 @@ impl JwtTokenGenerator {
 
 impl TokenGenerator for JwtTokenGenerator {
     fn generate_token(&self, user: String) -> Result<TokenResponse> {
-        let now = Local::now().timestamp() as usize;
+        if user.is_empty() {
+            bail!("generate jwt token failed: empty user");
+        }
+
+        let now = current_timestamp() as usize;
 
         let claims = Claims {
             // TODO: now we don't know how to use audience, left it empty now, we will use
@@ -64,11 +83,24 @@ impl TokenGenerator for JwtTokenGenerator {
     }
 }
 
+/// JSON Web Token validator for verifying and decoding tokens.
+/// Validates token signature, expiration time, and other claims.
 pub struct JwtTokenValidator {
-    key: DecodingKey,
+    key: DecodingKey, // Public key for verification
 }
 
 impl JwtTokenValidator {
+    /// Creates a new JWT token validator using an RSA public key.
+    ///
+    /// # Arguments
+    /// * `public_key` - RSA public key in PEM format
+    ///
+    /// # Example
+    /// ```
+    /// let public_key = include_bytes!("public_key.pem");
+    /// let validator = JwtTokenValidator::new(public_key)?;
+    /// let user = validator.validate_token(token)?; // Returns username if token is valid
+    /// ```
     pub fn new(public_key: &[u8]) -> Result<Self> {
         let key = match DecodingKey::from_rsa_pem(public_key) {
             Ok(key) => key,
@@ -97,7 +129,7 @@ impl TokenValidator for JwtTokenValidator {
             bail!("validate jwt token failed: empty subject");
         }
 
-        let now = Local::now().timestamp() as usize;
+        let now = current_timestamp() as usize;
         if now >= claims.exp {
             bail!("validate jwt token failed: token expired");
         }
@@ -107,5 +139,30 @@ impl TokenValidator for JwtTokenValidator {
         }
 
         Ok(claims.sub)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::server::authn::token::tests::{run_token_expiry_tests, run_token_tests};
+
+    use super::*;
+
+    #[test]
+    fn test_jwt() {
+        let private_key = include_bytes!("testdata/private_key.pem");
+        let public_key = include_bytes!("testdata/public_key.pem");
+
+        let jwt_generator = JwtTokenGenerator::new(private_key, 36000).unwrap();
+        let jwt_validator = JwtTokenValidator::new(public_key).unwrap();
+
+        run_token_tests(&jwt_generator, &jwt_validator);
+
+        let jwt_generator = JwtTokenGenerator::new(private_key, 100).unwrap();
+        run_token_expiry_tests(&jwt_generator, &jwt_validator, 100);
+
+        let invalid_key = "invalid key".as_bytes();
+        assert!(JwtTokenGenerator::new(invalid_key, 36000).is_err());
+        assert!(JwtTokenValidator::new(invalid_key).is_err());
     }
 }

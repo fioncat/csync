@@ -6,26 +6,61 @@ use serde::Serialize;
 
 use crate::table::Table;
 
+/// Display style options for output formatting
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum DisplayStyle {
+    /// Display data in a formatted table
     Table,
+    /// Display data in JSON format
     Json,
+    /// Display data in CSV format
     Csv,
 }
 
+/// Trait for types that can be displayed in terminal with different formats
 pub trait TerminalDisplay {
+    /// Returns the column titles for table display
     fn table_titles() -> Vec<&'static str>;
+    /// Converts the instance into a row of strings for table display
     fn table_row(self) -> Vec<String>;
 
+    /// Returns the column titles for CSV display
     fn csv_titles() -> Vec<&'static str>;
+    /// Converts the instance into a map of field name to value for CSV display
     fn csv_row(self) -> HashMap<&'static str, String>;
 }
 
+/// Displays an object as formatted JSON
+///
+/// # Arguments
+/// * `o` - Any object that implements Serialize
+///
+/// # Returns
+/// * `Ok(())` if successful
+/// * `Err` if JSON serialization fails
 pub fn display_json<T: Serialize>(o: T) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&o)?);
     Ok(())
 }
 
+/// Displays a list of items in the specified format
+///
+/// # Arguments
+/// * `list` - Vector of items to display
+/// * `style` - Output format (Table, JSON, or CSV)
+/// * `headless` - If true, omits headers in the output
+/// * `csv_titles` - Optional comma-separated list of columns to include in CSV output
+///
+/// # Returns
+/// * `Ok(())` if successful
+/// * `Err` if formatting or display fails
+///
+/// # Examples
+/// ```no_run
+/// let items = vec![item1, item2];
+/// display_list(items, DisplayStyle::Table, false, None)?; // Display as table with headers
+/// display_list(items, DisplayStyle::Csv, true, Some("name,id".to_string()))?; // CSV with specific columns
+/// ```
 pub fn display_list<T: Serialize + TerminalDisplay>(
     list: Vec<T>,
     style: DisplayStyle,

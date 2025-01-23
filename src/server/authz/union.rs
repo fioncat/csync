@@ -5,9 +5,13 @@ use super::anonymous::AnonymousAuthorizer;
 use super::rule::RuleAuthorizer;
 use super::{Authorizer, AuthzRequest, AuthzResponse};
 
+/// A union type that can hold different types of authorizers
 pub enum UnionAuthorizer {
+    /// Handles authorization for admin users
     Admin(AdminAuthorizer),
+    /// Handles authorization based on user roles and rules
     Rule(RuleAuthorizer),
+    /// Handles authorization for anonymous users
     Anonymous(AnonymousAuthorizer),
 }
 

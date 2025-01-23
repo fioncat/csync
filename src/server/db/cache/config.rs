@@ -3,17 +3,26 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{CommonConfig, PathSet};
 
+/// Cache configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CacheConfig {
+    /// Whether to enable caching
     #[serde(default = "CacheConfig::default_enable")]
     pub enable: bool,
 
+    /// Cache type
     #[serde(default = "CacheConfig::default_name")]
     pub name: CacheType,
 }
 
+/// Cache type
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum CacheType {
+    /// Memory-based cache that stores hot data in memory.
+    /// Cache data is lost after restart and does not expire automatically.
+    /// Note: Do not use this cache type in distributed server deployments
+    /// as it may cause cache inconsistency. For distributed setups,
+    /// please use other distributed caching solutions.
     #[serde(rename = "memory")]
     Memory,
 }

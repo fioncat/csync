@@ -3,11 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{expandenv, CommonConfig, PathSet};
 
+/// SQLite configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SqliteConfig {
+    /// Whether to use in-memory database. All data will be lost when the program exits.
+    /// Recommended for testing only.
     #[serde(default = "SqliteConfig::default_memory")]
     pub memory: bool,
 
+    /// Database file path, only valid when memory is false.
+    /// Default: {data_path}/server.db
     #[serde(default = "SqliteConfig::default_path")]
     pub path: String,
 }

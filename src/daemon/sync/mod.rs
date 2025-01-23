@@ -7,7 +7,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use chrono::Local;
 use log::{info, warn};
 use sha2::{Digest, Sha256};
 use tokio::select;
@@ -16,6 +15,7 @@ use tokio::sync::mpsc;
 use crate::client::Client;
 use crate::clipboard::Clipboard;
 use crate::humanize::human_bytes;
+use crate::time::current_timestamp;
 use crate::types::token::TokenResponse;
 
 #[async_trait]
@@ -243,7 +243,7 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
     async fn refresh_token(&mut self) -> Result<()> {
         let mut need_flush = true;
         if let Some(ref token) = self.token {
-            let now = Local::now().timestamp() as usize;
+            let now = current_timestamp() as usize;
             if now < token.expire_in {
                 need_flush = false;
             }

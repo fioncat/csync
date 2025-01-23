@@ -179,18 +179,7 @@ impl Handler for ApiHandler {
                         };
                         ResourceRequest::List(query, is_json)
                     }
-                    Payload::None => ResourceRequest::List(
-                        Query {
-                            offset: None,
-                            limit: None,
-                            search: None,
-                            since: None,
-                            until: None,
-                            owner: None,
-                            hash: None,
-                        },
-                        is_json,
-                    ),
+                    Payload::None => ResourceRequest::List(Query::default(), is_json),
                     Payload::Binary(_, _) => {
                         return Response::bad_request("Request body must be json for query")
                     }

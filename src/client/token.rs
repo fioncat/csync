@@ -1,8 +1,8 @@
 use anyhow::Result;
-use chrono::Local;
 use log::{info, warn};
 
 use crate::filelock::{read_file_lock, write_file_lock};
+use crate::time::current_timestamp;
 use crate::types::token::TokenResponse;
 
 use super::Client;
@@ -58,7 +58,7 @@ impl TokenFile {
             return Ok(None);
         }
 
-        let now = Local::now().timestamp() as usize;
+        let now = current_timestamp() as usize;
         if now >= resp.expire_in {
             info!("Token file has expired, we will acquire a new one");
             return Ok(None);

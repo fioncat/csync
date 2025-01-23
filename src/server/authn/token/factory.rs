@@ -8,6 +8,7 @@ use crate::rsa::generate_rsa_keys;
 use super::config::TokenConfig;
 use super::jwt::{JwtTokenGenerator, JwtTokenValidator};
 
+/// Factory for creating token generators and validators
 pub struct TokenFactory {
     public_key: Vec<u8>,
     private_key: Vec<u8>,
@@ -15,6 +16,7 @@ pub struct TokenFactory {
 }
 
 impl TokenFactory {
+    /// Creates a new token factory instance
     pub fn new(cfg: &TokenConfig) -> Result<Self> {
         let (public_key, private_key) = match fs::read(&cfg.public_key_path) {
             Ok(data) => (data, None),
@@ -40,10 +42,12 @@ impl TokenFactory {
         })
     }
 
+    /// Builds a token generator instance
     pub fn build_token_generator(&self) -> Result<JwtTokenGenerator> {
         JwtTokenGenerator::new(&self.private_key, self.expiry)
     }
 
+    /// Builds a token validator instance
     pub fn build_token_validator(&self) -> Result<JwtTokenValidator> {
         JwtTokenValidator::new(&self.public_key)
     }

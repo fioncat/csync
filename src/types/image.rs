@@ -6,17 +6,27 @@ use crate::display::TerminalDisplay;
 use crate::humanize::human_bytes;
 use crate::time::format_since;
 
+/// This constant will be recorded in the GET request's Metadata Header, indicating that
+/// the image data is encrypted and the receiving end needs to use the secret key for
+/// decryption.
 pub const ENABLE_SECRET: &str = "secret=true";
 
+/// Image information stored on the server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Image {
+    /// Image ID
     pub id: u64,
 
+    /// Image content hash using sha256
     pub hash: String,
 
+    /// Image size
     pub size: u64,
 
+    /// Image owner
     pub owner: String,
+
+    /// Image creation time
     pub create_time: u64,
 }
 

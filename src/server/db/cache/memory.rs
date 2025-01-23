@@ -8,6 +8,8 @@ use crate::server::db::{FileRecord, ImageRecord, RoleRecord, TextRecord};
 
 use super::Cache;
 
+/// A memory-based cache implementation that stores data in simple maps.
+/// The cached data is stored in memory and does not expire.
 pub struct MemoryCache {
     user_roles: RefCell<HashMap<String, Vec<RoleRecord>>>,
 
@@ -22,6 +24,7 @@ pub struct MemoryCache {
 }
 
 impl MemoryCache {
+    /// Creates a new instance of memory cache.
     pub fn new() -> Self {
         Self {
             user_roles: RefCell::new(HashMap::new()),
@@ -177,5 +180,18 @@ impl Cache for MemoryCache {
         self.latest_file_owners.borrow_mut().clear();
         self.latest_file.replace(None);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::server::db::cache::tests::run_all_cache_tests;
+
+    use super::*;
+
+    #[test]
+    fn test_memory() {
+        let cache = MemoryCache::new();
+        run_all_cache_tests(&cache);
     }
 }

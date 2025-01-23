@@ -6,20 +6,26 @@ use crate::config::{CommonConfig, PathSet};
 use super::cache::config::CacheConfig;
 use super::sqlite::config::SqliteConfig;
 
+/// Database configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DbConfig {
+    /// Database type to use
     #[serde(default = "DbConfig::default_name")]
     pub name: DbType,
 
+    /// SQLite configuration, only valid when database type is sqlite
     #[serde(default = "SqliteConfig::default")]
     pub sqlite: SqliteConfig,
 
+    /// Cache configuration
     #[serde(default = "CacheConfig::default")]
     pub cache: CacheConfig,
 }
 
+/// Database type
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum DbType {
+    /// Use SQLite database
     #[serde(rename = "sqlite")]
     Sqlite,
 }

@@ -20,21 +20,30 @@ use super::FileRecord;
 use super::ImageRecord;
 use super::{Connection, RoleRecord, Transaction, UserRecord};
 
+/// SQLite-based database implementation. This is the simplest database type,
+/// perfect for single-node deployments. Supports both file-based and in-memory
+/// database types.
 pub struct Sqlite {
     conn: RawConnection,
 }
 
+/// SQLite transaction for executing database operations
 pub struct SqliteTransaction<'a> {
     tx: RawTransaction<'a>,
 }
 
 impl Sqlite {
+    /// Opens a SQLite database file. Creates one if it doesn't exist.
+    /// Also initializes all required database tables.
     pub fn open(path: &Path) -> Result<Self> {
         let conn = RawConnection::open(path)?;
         Self::init_tables(&conn)?;
         Ok(Self { conn })
     }
 
+    /// Creates a new in-memory database. Database content will be lost when the program exits.
+    /// Also initializes all required database tables.
+    /// This method is recommended for testing only.
     pub fn memory() -> Result<Self> {
         let conn = RawConnection::open_in_memory()?;
         Self::init_tables(&conn)?;
@@ -254,5 +263,38 @@ impl Transaction for SqliteTransaction<'_> {
     fn rollback(self) -> Result<()> {
         self.tx.rollback()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use crate::server::db::tests::run_all_db_tests;
+    use crate::server::db::{Database, UnionConnection};
+
+    use super::*;
+
+    #[test]
+    fn test_memory() {
+        let sqlite = Sqlite::memory().unwrap();
+        let conn = UnionConnection::Sqlite(sqlite);
+        let db = Database::new(conn, None);
+
+        run_all_db_tests(&db);
+    }
+
+    #[test]
+    fn test_file() {
+        let path = "/tmp/test_csync.db";
+        let _ = fs::remove_file(path);
+
+        let sqlite = Sqlite::open(Path::new(path)).unwrap();
+        let conn = UnionConnection::Sqlite(sqlite);
+        let db = Database::new(conn, None);
+
+        run_all_db_tests(&db);
+
+        fs::remove_file(path).unwrap();
     }
 }

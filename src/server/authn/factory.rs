@@ -11,13 +11,25 @@ use super::token::factory::TokenFactory;
 use super::token::jwt::JwtTokenValidator;
 use super::union::UnionAuthenticator;
 
+/// Factory for building authentication chains based on configuration.
+///
+/// This factory creates a chain of authenticators in the following order:
+/// 1. Bearer token authentication (always enabled)
+/// 2. Admin authentication (if enabled in config)
+/// 3. Anonymous authentication (if enabled in config)
 pub struct AuthnFactory;
 
 impl AuthnFactory {
+    /// Creates a new authentication factory.
     pub fn new() -> Self {
         Self
     }
 
+    /// Builds an authentication chain based on the provided configuration.
+    ///
+    /// # Arguments
+    /// * `cfg` - Authentication configuration
+    /// * `token_factory` - Factory for creating token validators
     pub fn build_authenticator(
         &self,
         cfg: &AuthnConfig,
@@ -50,5 +62,88 @@ impl AuthnFactory {
 
         let chain = ChainAuthenticator::new(authenticators);
         Ok(chain)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::path::PathBuf;
+
+    use crate::config::CommonConfig;
+    use crate::dirs;
+    use crate::server::authn::token::config::TokenConfig;
+
+    use super::*;
+
+    fn mock_token_factory() -> TokenFactory {
+        dirs::ensure_dir_exists(&PathBuf::from("testdata/pki")).unwrap();
+        let cfg = TokenConfig {
+            public_key_path: "testdata/pki/token_public.pem".to_string(),
+            private_key_path: "testdata/pki/token_private.pem".to_string(),
+            expiry: 3600,
+            generate_if_not_exists: false,
+        };
+        TokenFactory::new(&cfg).unwrap()
+    }
+
+    fn get_chain_length(chain: &ChainAuthenticator<JwtTokenValidator>) -> usize {
+        chain.authenticators.len()
+    }
+
+    fn is_anonymous_enabled(chain: &ChainAuthenticator<JwtTokenValidator>) -> bool {
+        chain
+            .authenticators
+            .iter()
+            .any(|auth| matches!(auth, UnionAuthenticator::Anonymous(_)))
+    }
+
+    fn is_admin_enabled(chain: &ChainAuthenticator<JwtTokenValidator>) -> bool {
+        chain
+            .authenticators
+            .iter()
+            .any(|auth| matches!(auth, UnionAuthenticator::Admin(_)))
+    }
+
+    #[test]
+    fn test_factory() {
+        let factory = AuthnFactory::new();
+        let token_factory = mock_token_factory();
+
+        // Test default config
+        let cfg = AuthnConfig::default();
+        let chain = factory.build_authenticator(&cfg, &token_factory).unwrap();
+        assert_eq!(get_chain_length(&chain), 2);
+        assert!(!is_anonymous_enabled(&chain));
+        assert!(is_admin_enabled(&chain));
+
+        // Test with anonymous enabled
+        let mut cfg = AuthnConfig::default();
+        cfg.allow_anonymous = true;
+        let chain = factory.build_authenticator(&cfg, &token_factory).unwrap();
+        assert_eq!(get_chain_length(&chain), 3);
+        assert!(is_anonymous_enabled(&chain));
+        assert!(is_admin_enabled(&chain));
+
+        // Test with all authenticators enabled
+        let mut cfg = AuthnConfig::default();
+        cfg.allow_anonymous = true;
+        cfg.admin_password = "strong_password".to_string();
+        let mut allow_list = HashSet::new();
+        allow_list.insert("127.0.0.1".to_string());
+        cfg.admin_allow_list = allow_list;
+        let chain = factory.build_authenticator(&cfg, &token_factory).unwrap();
+        assert_eq!(get_chain_length(&chain), 3);
+        assert!(is_admin_enabled(&chain));
+        assert!(is_anonymous_enabled(&chain));
+
+        // Test with admin disabled
+        let mut cfg = AuthnConfig::default();
+        cfg.admin_password = "".to_string();
+        cfg.allow_anonymous = true;
+        let chain = factory.build_authenticator(&cfg, &token_factory).unwrap();
+        assert_eq!(get_chain_length(&chain), 2);
+        assert!(!is_admin_enabled(&chain));
+        assert!(is_anonymous_enabled(&chain));
     }
 }
