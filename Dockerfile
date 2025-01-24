@@ -8,7 +8,7 @@ FROM ${BUILD_IMAGE} AS builder
 WORKDIR /usr/src/csync
 COPY . .
 
-RUN cargo build --release --locked
+RUN cargo build --release --locked --no-default-features
 RUN mv ./target/release/csync /usr/local/cargo/bin/csync
 
 # Use BASE_IMAGE for the final stage
