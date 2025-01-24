@@ -964,7 +964,7 @@ dependencies = [
 
 [[package]]
 name = "csync"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "actix-web",
  "aes-gcm",
