@@ -20,7 +20,7 @@ pub struct TrayArgs {
     pub limit: u64,
 
     /// Text entries longer than this size will be truncated
-    #[arg(short, long, default_value = "50")]
+    #[arg(short, long, default_value = "80")]
     pub truncate_size: usize,
 
     #[command(flatten)]
