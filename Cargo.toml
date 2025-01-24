@@ -36,6 +36,7 @@ serde = {version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 shellexpand = "3.1"
+tauri = { version = "1", features = [ "system-tray", "shell-open"] }
 thiserror = "2.0"
 tokio = { version = "1.43", features = ["full"] }
 toml = "0.8"
@@ -45,6 +46,7 @@ once_cell = "1.20"
 
 [build-dependencies]
 simple-error = "0.3"
+tauri-build = { version = "1", features = [] }
 vergen = { version = "9.0", features = ["build", "rustc", "cargo", "si"] }
 
 [profile.release]

@@ -65,7 +65,7 @@ impl Table {
     /// Renders and prints the table to stdout.
     pub fn show(self) {
         let s = self.render();
-        println!("{s}");
+        print!("{s}");
     }
 
     /// Renders the table to a string.
