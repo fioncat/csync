@@ -18,6 +18,11 @@ pub async fn build_and_run_tray_ui(
     tauri::Builder::default()
         .system_tray(system_tray)
         .setup(|app| {
+            // Hide the app icon from the dock(macOS) while keeping it in the menu bar
+            // See: <https://github.com/tauri-apps/tauri/discussions/6038>
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let app_handle = app.handle();
             tokio::spawn(async move {
                 watch_menu_updates(app_handle, menu_rx).await;
