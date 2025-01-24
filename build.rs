@@ -76,5 +76,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         env::var("TARGET").unwrap()
     );
 
+    tauri_build::build();
+
     Ok(())
 }

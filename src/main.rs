@@ -14,6 +14,7 @@ mod secret;
 mod server;
 mod table;
 mod time;
+mod tray;
 mod types;
 
 use std::process;

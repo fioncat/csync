@@ -7,6 +7,7 @@ mod get;
 mod put;
 mod read;
 mod server;
+mod tray;
 mod version;
 mod whoami;
 
@@ -40,6 +41,7 @@ pub enum Commands {
     Whoami(whoami::WhoamiArgs),
     Cani(cani::CaniArgs),
     Version(version::VersionArgs),
+    Tray(tray::TrayArgs),
 
     Server(server::ServerArgs),
     Daemon(daemon::DaemonArgs),
@@ -58,6 +60,7 @@ impl RunCommand for App {
             Commands::Whoami(args) => args.run().await,
             Commands::Cani(args) => args.run().await,
             Commands::Version(args) => args.run().await,
+            Commands::Tray(args) => args.run().await,
 
             Commands::Server(_) => unreachable!(),
             Commands::Daemon(_) => unreachable!(),
