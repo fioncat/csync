@@ -76,6 +76,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         env::var("TARGET").unwrap()
     );
 
+    #[cfg(feature = "tray")]
     tauri_build::build();
 
     Ok(())

@@ -7,6 +7,7 @@ mod get;
 mod put;
 mod read;
 mod server;
+#[cfg(feature = "tray")]
 mod tray;
 mod version;
 mod whoami;
@@ -41,6 +42,7 @@ pub enum Commands {
     Whoami(whoami::WhoamiArgs),
     Cani(cani::CaniArgs),
     Version(version::VersionArgs),
+    #[cfg(feature = "tray")]
     Tray(tray::TrayArgs),
 
     Server(server::ServerArgs),
@@ -60,6 +62,7 @@ impl RunCommand for App {
             Commands::Whoami(args) => args.run().await,
             Commands::Cani(args) => args.run().await,
             Commands::Version(args) => args.run().await,
+            #[cfg(feature = "tray")]
             Commands::Tray(args) => args.run().await,
 
             Commands::Server(_) => unreachable!(),

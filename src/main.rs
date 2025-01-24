@@ -14,6 +14,7 @@ mod secret;
 mod server;
 mod table;
 mod time;
+#[cfg(feature = "tray")]
 mod tray;
 mod types;
 
