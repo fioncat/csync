@@ -11,8 +11,18 @@ use crate::tray::ui::build_and_run_tray_ui;
 
 use super::{ConfigArgs, LogArgs, RunCommand};
 
+/// Launches a system tray application that provides instant access to clipboard history.
+/// The system tray will close if this program is terminated.
 #[derive(Args)]
 pub struct TrayArgs {
+    /// Maximum number of history entries to display
+    #[arg(short, long, default_value = "20")]
+    pub limit: u64,
+
+    /// Text entries longer than this size will be truncated
+    #[arg(short, long, default_value = "50")]
+    pub truncate_size: usize,
+
     #[command(flatten)]
     pub config: ConfigArgs,
 
@@ -33,7 +43,9 @@ impl RunCommand for TrayArgs {
         let client_cfg: ClientConfig = ps.load_config("client", ClientConfig::default)?;
 
         let factory = TrayFactory::new(client_cfg, daemon_cfg);
-        let (mut daemon, menu_rx, write_tx) = factory.build_tray_daemon(20, 50).await?;
+        let (mut daemon, menu_rx, write_tx) = factory
+            .build_tray_daemon(self.limit, self.truncate_size)
+            .await?;
 
         let default_menu = daemon.build_menu().await?;
 
