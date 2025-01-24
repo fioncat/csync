@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use log::{error, info};
-use tauri::{CustomMenuItem, SystemTrayMenu};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc;
@@ -27,7 +26,7 @@ pub struct TrayDaemon {
     pub user: String,
     pub password: String,
 
-    pub menu_tx: mpsc::Sender<SystemTrayMenu>,
+    pub menu_tx: mpsc::Sender<Vec<(String, String)>>,
     pub write_rx: mpsc::Receiver<u64>,
 
     pub limit: u64,
@@ -114,22 +113,22 @@ impl TrayDaemon {
         Ok(false)
     }
 
-    pub async fn build_menu(&mut self) -> Result<SystemTrayMenu> {
+    pub async fn build_menu(&mut self) -> Result<Vec<(String, String)>> {
         self.refresh_token().await?;
 
         let mut query = Query::default();
         query.limit = Some(self.limit);
 
         let texts = self.client.read_texts(query).await?;
-        let mut menu = SystemTrayMenu::new();
+        let mut items = Vec::with_capacity(texts.len());
         for text in texts {
             let id = text.id.to_string();
             let text = self.truncate_string(text.content.unwrap());
             let text = text.replace("\n", "\\n");
-            menu = menu.add_item(CustomMenuItem::new(id, text));
+            items.push((id, text));
         }
 
-        Ok(menu)
+        Ok(items)
     }
 
     async fn refresh_token(&mut self) -> Result<()> {

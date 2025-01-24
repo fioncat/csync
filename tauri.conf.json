@@ -1,17 +1,12 @@
 {
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "open": true
-      }
-    },
-    "windows": [],
+  "plugins": {},
+  "identifier": "com.tauri-app.app",
+  "app": {
     "security": {
       "csp": null
     },
-    "systemTray": {
+    "windows": [],
+    "trayIcon": {
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true
     }

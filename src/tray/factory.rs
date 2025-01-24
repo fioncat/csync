@@ -1,5 +1,4 @@
 use anyhow::Result;
-use tauri::SystemTrayMenu;
 use tokio::sync::mpsc;
 
 use crate::client::config::ClientConfig;
@@ -27,7 +26,7 @@ impl TrayFactory {
         truncate_size: usize,
     ) -> Result<(
         TrayDaemon,
-        mpsc::Receiver<SystemTrayMenu>,
+        mpsc::Receiver<Vec<(String, String)>>,
         mpsc::Sender<u64>,
     )> {
         let user = self.client_cfg.user.clone();
