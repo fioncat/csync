@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use log::{error, info};
 use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
 use tauri::AppHandle;
 use tokio::sync::{mpsc, Mutex};
 
@@ -24,7 +23,7 @@ pub async fn build_and_run_tray_ui(
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            setup_menu(app.handle(), default_menu, true)?;
+            setup_menu(app.handle(), default_menu)?;
 
             let app_handle = app.handle().clone();
             tokio::spawn(async move {
@@ -59,26 +58,19 @@ async fn watch_menu_updates(
         let items = menu_rx.recv().await.unwrap();
         info!("Received menu update event");
 
-        if let Err(e) = setup_menu(&app_handle, items, false) {
+        if let Err(e) = setup_menu(&app_handle, items) {
             error!("Failed to update system tray menu: {e:#}");
         }
     }
 }
 
-fn setup_menu(app_handle: &AppHandle, items: Vec<(String, String)>, defaults: bool) -> Result<()> {
+fn setup_menu(app_handle: &AppHandle, items: Vec<(String, String)>) -> Result<()> {
     let menu = Menu::new(app_handle)?;
     for item in items {
         let menu_item = MenuItem::with_id(app_handle, item.0, item.1, true, None::<&str>)?;
         menu.append(&menu_item)?;
     }
-    if defaults {
-        TrayIconBuilder::with_id("main-tray")
-            .icon(app_handle.default_window_icon().unwrap().clone())
-            .menu(&menu)
-            .build(app_handle)?;
-    } else {
-        let tray = app_handle.tray_by_id("main-tray").unwrap();
-        tray.set_menu(Some(menu))?;
-    }
+    let tray = app_handle.tray_by_id("main").unwrap();
+    tray.set_menu(Some(menu))?;
     Ok(())
 }
