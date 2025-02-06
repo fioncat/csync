@@ -2,7 +2,7 @@
 <h1>📄 Csync</h1>
 </div>
 
-csync is a powerful clipboard synchronization tool that allows you to share clipboard content seamlessly across multiple devices. It provides both command-line interface and GUI system tray for easy access to clipboard history.
+Csync is a powerful clipboard synchronization tool that allows you to share clipboard content seamlessly across multiple devices. It provides both command-line interface and GUI system tray for easy access to clipboard history.
 
 Csync is written by Rust, it is very fast and lightweight!
 
