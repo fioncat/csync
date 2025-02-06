@@ -6,6 +6,7 @@ use crate::client::factory::ClientFactory;
 use crate::client::Client;
 use crate::clipboard::Clipboard;
 use crate::cmd::{ConfigArgs, QueryArgs, RunCommand};
+use crate::types::text::truncate_text;
 
 /// Read text content from the server. This command allows reading multiple text contents
 /// for further filtering and other operations.
@@ -104,9 +105,7 @@ impl TextArgs {
         for text in texts {
             let id = text.id;
             let content = text.content.unwrap();
-            let line = Self::truncate_string(content, self.length);
-
-            let line = line.replace("\n", " ");
+            let line = truncate_text(content, self.length);
             println!("{id}. {line}");
         }
 
@@ -127,20 +126,5 @@ impl TextArgs {
         };
 
         input[..num_end].parse().context("parse id number")
-    }
-
-    pub fn truncate_string(mut s: String, max_len: usize) -> String {
-        if s.chars().count() <= max_len {
-            return s;
-        }
-
-        s.truncate(
-            s.char_indices()
-                .nth(max_len)
-                .map(|(i, _)| i)
-                .unwrap_or(s.len()),
-        );
-        s.push_str("...");
-        s
     }
 }

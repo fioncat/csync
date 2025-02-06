@@ -61,3 +61,19 @@ impl TerminalDisplay for Text {
         .collect()
     }
 }
+
+pub fn truncate_text(text: String, max_len: usize) -> String {
+    let mut text = text.replace("\n", "\\n");
+    if text.chars().count() <= max_len {
+        return text;
+    }
+
+    text.truncate(
+        text.char_indices()
+            .nth(max_len)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len()),
+    );
+    text.push_str("...");
+    text
+}

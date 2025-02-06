@@ -12,7 +12,7 @@ use crate::clipboard::Clipboard;
 use crate::daemon::client::DaemonClient;
 use crate::time::current_timestamp;
 use crate::types::request::Query;
-use crate::types::text::Text;
+use crate::types::text::{truncate_text, Text};
 use crate::types::token::TokenResponse;
 
 pub struct TrayDaemon {
@@ -123,7 +123,7 @@ impl TrayDaemon {
         let mut items = Vec::with_capacity(texts.len());
         for text in texts {
             let id = text.id.to_string();
-            let text = self.truncate_string(text.content.unwrap());
+            let text = truncate_text(text.content.unwrap(), self.truncate_size);
             let text = text.replace("\n", "\\n");
             items.push((id, text));
         }
@@ -153,20 +153,5 @@ impl TrayDaemon {
 
         self.token = Some(resp);
         Ok(())
-    }
-
-    fn truncate_string(&self, mut s: String) -> String {
-        if s.chars().count() <= self.truncate_size {
-            return s;
-        }
-
-        s.truncate(
-            s.char_indices()
-                .nth(self.truncate_size)
-                .map(|(i, _)| i)
-                .unwrap_or(s.len()),
-        );
-        s.push_str("...");
-        s
     }
 }
