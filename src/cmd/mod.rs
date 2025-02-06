@@ -6,6 +6,7 @@ mod delete;
 mod get;
 mod put;
 mod read;
+mod select;
 mod server;
 #[cfg(feature = "tray")]
 mod tray;
@@ -33,40 +34,44 @@ pub struct App {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    Cani(cani::CaniArgs),
+    Cb(cb::CbArgs),
     Config(config::ShowConfigArgs),
     Delete(delete::DeleteArgs),
     Get(get::GetArgs),
     Put(put::PutCommand),
     Read(read::ReadCommand),
-    Cb(cb::CbArgs),
-    Whoami(whoami::WhoamiArgs),
-    Cani(cani::CaniArgs),
+    Select(select::SelectArgs),
     Version(version::VersionArgs),
+    Whoami(whoami::WhoamiArgs),
+
     #[cfg(feature = "tray")]
     Tray(tray::TrayArgs),
 
-    Server(server::ServerArgs),
     Daemon(daemon::DaemonArgs),
+    Server(server::ServerArgs),
 }
 
 #[async_trait]
 impl RunCommand for App {
     async fn run(&self) -> Result<()> {
         match &self.command {
+            Commands::Cani(args) => args.run().await,
+            Commands::Cb(args) => args.run().await,
             Commands::Config(args) => args.run().await,
             Commands::Delete(args) => args.run().await,
             Commands::Get(args) => args.run().await,
             Commands::Put(args) => args.run().await,
             Commands::Read(args) => args.run().await,
-            Commands::Cb(args) => args.run().await,
-            Commands::Whoami(args) => args.run().await,
-            Commands::Cani(args) => args.run().await,
+            Commands::Select(args) => args.run().await,
             Commands::Version(args) => args.run().await,
+            Commands::Whoami(args) => args.run().await,
+
             #[cfg(feature = "tray")]
             Commands::Tray(args) => args.run().await,
 
-            Commands::Server(_) => unreachable!(),
             Commands::Daemon(_) => unreachable!(),
+            Commands::Server(_) => unreachable!(),
         }
     }
 }

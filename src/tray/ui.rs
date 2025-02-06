@@ -1,20 +1,16 @@
 #![allow(deprecated)]
 
-use std::sync::Arc;
-
 use anyhow::{Context, Result};
 use log::{error, info};
 use tauri::menu::{Menu, MenuItem};
 use tauri::AppHandle;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 
 pub async fn build_and_run_tray_ui(
     default_menu: Vec<(String, String)>,
     menu_rx: mpsc::Receiver<Vec<(String, String)>>,
     write_tx: mpsc::Sender<u64>,
 ) -> Result<()> {
-    let write_tx = Arc::new(Mutex::new(write_tx));
-
     info!("Starting system tray event loop");
     tauri::Builder::default()
         .setup(|app| {
@@ -42,7 +38,7 @@ pub async fn build_and_run_tray_ui(
             let write_tx = write_tx.clone();
             tokio::spawn(async move {
                 info!("Sending menu item click event: {id}");
-                write_tx.lock().await.send(id).await.unwrap();
+                write_tx.send(id).await.unwrap();
             });
         })
         .run(tauri::generate_context!())
