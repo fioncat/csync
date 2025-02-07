@@ -23,13 +23,10 @@ use log::LevelFilter;
 ///
 /// # Examples
 /// ```
-/// use crate::logs;
+/// use csync_misc::logs;
 ///
 /// // Initialize with info level
 /// logs::init("info").expect("Failed to initialize logger");
-///
-/// // Initialize with debug level
-/// logs::init("debug").expect("Failed to initialize logger");
 /// ```
 ///
 /// # Errors

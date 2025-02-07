@@ -14,14 +14,14 @@ use openssl::rsa::Rsa;
 /// # Examples
 ///
 /// ```
-/// use crate::server::authn::rsa::generate_rsa_keys;
+/// use csync_misc::rsa::generate_rsa_keys;
 ///
 /// // Generate a new RSA key pair
 /// let (public_key, private_key) = generate_rsa_keys().unwrap();
 ///
 /// // Keys are in PEM format and can be written to files
-/// std::fs::write("public_key.pem", &public_key).unwrap();
-/// std::fs::write("private_key.pem", &private_key).unwrap();
+/// std::fs::write("testdata/public_key.pem", &public_key).unwrap();
+/// std::fs::write("testdata/private_key.pem", &private_key).unwrap();
 /// ```
 pub fn generate_rsa_keys() -> Result<(Vec<u8>, Vec<u8>)> {
     let rsa = Rsa::generate(2048)?;

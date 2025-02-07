@@ -21,14 +21,14 @@ use anyhow::Result;
 ///
 /// ```
 /// use std::path::Path;
-/// use crate::dirs::ensure_dir_exists;
+/// use csync_misc::dirs::ensure_dir_exists;
 ///
 /// // Create a single directory
-/// let dir_path = Path::new("data");
+/// let dir_path = Path::new("testdata/data");
 /// ensure_dir_exists(dir_path).unwrap();
 ///
 /// // Create nested directories
-/// let nested_path = Path::new("data/cache/temp");
+/// let nested_path = Path::new("testdata/data/cache/temp");
 /// ensure_dir_exists(nested_path).unwrap();
 ///
 /// // Directory already exists - no error

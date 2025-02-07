@@ -1,0 +1,3 @@
+/testdata/*.pem
+/testdata/*.lock
+/testdata/data

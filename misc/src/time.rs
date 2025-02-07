@@ -1,6 +1,3 @@
-#[cfg(test)]
-use std::sync::Mutex;
-
 use anyhow::{bail, Result};
 use chrono::{Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 
@@ -23,8 +20,10 @@ const YEAR: u64 = 365 * DAY;
 ///
 /// # Examples
 /// ```
-/// use crate::time::format_since;
-/// let now = current_timestamp();
+/// use chrono::Local;
+/// use csync_misc::time::format_since;
+///
+/// let now = Local::now().timestamp() as u64;
 /// assert_eq!(format_since(now), "now");
 /// assert_eq!(format_since(0), "never");
 /// ```
@@ -32,7 +31,7 @@ pub fn format_since(time: u64) -> String {
     if time == 0 {
         return String::from("never");
     }
-    let now = current_timestamp();
+    let now = Local::now().timestamp() as u64;
     let duration = now.saturating_sub(time);
 
     let unit: &str;
@@ -118,24 +117,4 @@ pub fn get_time_before_hours(hours: u64) -> u64 {
     let now = Local::now();
     let before = now - Duration::hours(hours as i64);
     before.timestamp() as u64
-}
-
-#[cfg(test)]
-static MOCK_TIME: once_cell::sync::Lazy<Mutex<u64>> =
-    once_cell::sync::Lazy::new(|| Mutex::new(Local::now().timestamp() as u64));
-
-#[cfg(test)]
-pub fn advance_mock_time(seconds: u64) {
-    let mut guard = MOCK_TIME.lock().unwrap();
-    *guard += seconds;
-}
-
-#[cfg(test)]
-pub fn current_timestamp() -> u64 {
-    *MOCK_TIME.lock().unwrap()
-}
-
-#[cfg(not(test))]
-pub fn current_timestamp() -> u64 {
-    Local::now().timestamp() as u64
 }

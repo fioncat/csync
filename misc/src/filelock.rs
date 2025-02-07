@@ -15,9 +15,9 @@ use log::warn;
 /// # Examples
 /// ```
 /// use std::path::PathBuf;
-/// use crate::filelock::GlobalLock;
+/// use csync_misc::filelock::GlobalLock;
 ///
-/// let lock_path = PathBuf::from("process.lock");
+/// let lock_path = PathBuf::from("testdata/process.lock");
 /// let lock = GlobalLock::acquire(lock_path).expect("Failed to acquire lock");
 /// // Process is now locked
 /// // Lock is automatically released when `lock` is dropped

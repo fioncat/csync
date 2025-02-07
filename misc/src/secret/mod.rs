@@ -42,7 +42,7 @@ pub trait Secret {
 ///
 /// # Examples
 /// ```
-/// use crate::secret::base64_encode;
+/// use csync_misc::secret::base64_encode;
 ///
 /// let data = b"Hello, World!";
 /// let encoded = base64_encode(data);
@@ -63,7 +63,7 @@ pub fn base64_encode(data: &[u8]) -> String {
 ///
 /// # Examples
 /// ```
-/// use crate::secret::base64_decode;
+/// use csync_misc::secret::base64_decode;
 ///
 /// let encoded = "SGVsbG8sIFdvcmxkIQ==";
 /// let decoded = base64_decode(encoded).unwrap();

@@ -10,6 +10,8 @@ use pad::PadStr;
 ///
 /// # Example
 /// ```
+/// use csync_misc::table::Table;
+///
 /// let mut table = Table::with_capacity(2, false);
 /// table.add(vec!["Name".to_string(), "Age".to_string()]);
 /// table.add(vec!["Alice".to_string(), "20".to_string()]);

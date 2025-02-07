@@ -2,6 +2,7 @@ pub mod config;
 pub mod dirs;
 pub mod display;
 pub mod filelock;
+pub mod humanize;
 pub mod imghdr;
 pub mod logs;
 pub mod rsa;

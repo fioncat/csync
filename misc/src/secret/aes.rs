@@ -28,8 +28,8 @@ use super::{base64_encode, Secret};
 ///
 /// # Examples
 /// ```
-/// use crate::secret::aes::AesSecret;
-/// use crate::secret::Secret;
+/// use csync_misc::secret::aes::AesSecret;
+/// use csync_misc::secret::Secret;
 ///
 /// // Generate a random key
 /// let key = AesSecret::generate_key();

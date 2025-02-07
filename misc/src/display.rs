@@ -54,13 +54,6 @@ pub fn display_json<T: Serialize>(o: T) -> Result<()> {
 /// # Returns
 /// * `Ok(())` if successful
 /// * `Err` if formatting or display fails
-///
-/// # Examples
-/// ```no_run
-/// let items = vec![item1, item2];
-/// display_list(items, DisplayStyle::Table, false, None)?; // Display as table with headers
-/// display_list(items, DisplayStyle::Csv, true, Some("name,id".to_string()))?; // CSV with specific columns
-/// ```
 pub fn display_list<T: Serialize + TerminalDisplay>(
     list: Vec<T>,
     style: DisplayStyle,
