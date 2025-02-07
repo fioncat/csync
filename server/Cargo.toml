@@ -1,0 +1,7 @@
+[package]
+name = "csync-server"
+edition = "2021"
+description = "csync server"
+
+[build-dependencies]
+csync_build = { path = "../build" }
