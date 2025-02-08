@@ -1,7 +1,7 @@
 [package]
-name = "csync"
+name = "csyncd"
 edition = "2021"
-description = "csync command line tool"
+description = "Csync daemon"
 
 [dependencies]
 tauri = { version = "2.2", features = ["tray-icon"] }

@@ -11,7 +11,8 @@ repository = "https://github.com/fioncat/csync"
 resolver = "2"
 members = [
     "build",
-    "csync",
+    "control",
+    "daemon",
     "misc",
     "server",
 ]

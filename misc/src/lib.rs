@@ -1,3 +1,5 @@
+pub mod client;
+pub mod clipboard;
 pub mod config;
 pub mod dirs;
 pub mod display;
