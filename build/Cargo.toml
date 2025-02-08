@@ -1,0 +1,7 @@
+[package]
+name = "csync_build"
+edition = "2021"
+
+[dependencies]
+simple-error = "0.3"
+vergen = { version = "9.0", features = ["build", "rustc", "cargo", "si"] }

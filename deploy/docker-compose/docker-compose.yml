@@ -7,6 +7,5 @@ services:
     volumes:
       - /etc/csync:/etc/csync
       - /var/lib/csync:/var/lib/csync
-    command: ["server"]
     restart: unless-stopped
     network_mode: host

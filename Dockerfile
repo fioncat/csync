@@ -8,13 +8,13 @@ FROM ${BUILD_IMAGE} AS builder
 WORKDIR /usr/src/csync
 COPY . .
 
-RUN cargo build --release --locked --no-default-features
-RUN mv ./target/release/csync /usr/local/cargo/bin/csync
+RUN cargo build --package csync-server --release --locked
+RUN mv ./target/release/csync-server /usr/local/cargo/bin/csync-server
 
 # Use BASE_IMAGE for the final stage
 FROM ${BASE_IMAGE}
 
 RUN apt update && apt install -y openssl
-COPY --from=builder /usr/local/cargo/bin/csync /usr/local/bin
+COPY --from=builder /usr/local/cargo/bin/csync-server /usr/local/bin
 
-ENTRYPOINT [ "/usr/local/bin/csync" ]
+ENTRYPOINT [ "/usr/local/bin/csync-server" ]

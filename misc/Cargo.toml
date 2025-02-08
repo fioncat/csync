@@ -1,0 +1,29 @@
+[package]
+name = "csync_misc"
+edition = "2021"
+
+[dependencies]
+aes-gcm = "0.10"
+anyhow = "1.0"
+base64 = "0.22"
+bytes = "1.9"
+chrono = "0.4"
+clap = { version = "4.5", features = ["derive"] }
+console = "0.15"
+fern = { version = "0.7", features = ["colored"] }
+file-lock = "2.1"
+humantime = "2.1"
+libc = "0.2"
+log = "0.4"
+openssl = "0.10"
+pad = "0.1"
+pbkdf2 = "0.12"
+rand = "0.9"
+reqwest = { version = "0.12", features = ["json"] }
+serde = {version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+shellexpand = "3.1"
+thiserror = "2.0"
+tokio = { version = "1.43", features = ["full"] }
+toml = "0.8"

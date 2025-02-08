@@ -5,8 +5,8 @@ After=multi-user.target
 Wants=network-online.target
 
 [Service]
-Type=notify
-ExecStart=/usr/local/bin/csync daemon --log-level info
+Type=simple
+ExecStart=/usr/local/bin/csyncd
 
 Restart=always
 RestartSec=3

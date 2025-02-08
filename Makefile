@@ -11,10 +11,6 @@ all:
 release:
 	cargo build --release --locked
 
-.PHONY: minimal
-minimal:
-	cargo build --release --locked --no-default-features
-
 .PHONY: docker
 docker:
 	$(DOCKER_CMD) build \

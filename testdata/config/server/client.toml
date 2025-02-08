@@ -1,8 +1,0 @@
-server = "http://127.0.0.1:7883"
-
-user = "admin"
-password = "test_admin123"
-
-[secret]
-enable = true
-key = "test_key"
