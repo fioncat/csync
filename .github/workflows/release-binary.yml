@@ -39,7 +39,7 @@ jobs:
 
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: csync
+          bin: csync-server,csyncd,csynctl
           tar: unix
           target: ${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
