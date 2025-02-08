@@ -13,8 +13,3 @@ tokio = { version = "1.43", features = ["full"] }
 
 [build-dependencies]
 csync_build = { path = "../build" }
-
-[profile.release]
-lto = true
-strip = true
-incremental = false

@@ -1,3 +1,4 @@
 /testdata/*.pem
 /testdata/*.lock
 /testdata/data
+/testdata/conn_data

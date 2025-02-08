@@ -19,7 +19,7 @@ pub enum ImageType {
 ///
 /// # Examples
 /// ```
-/// use crate::imghdr::{detect_data_image_type, ImageType};
+/// use csync_misc::imghdr::{detect_data_image_type, ImageType};
 ///
 /// // PNG signature
 /// let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00];
@@ -30,12 +30,7 @@ pub enum ImageType {
 /// assert_eq!(detect_data_image_type(&jpeg_data), ImageType::Jpeg);
 /// ```
 pub fn detect_data_image_type(data: &[u8]) -> ImageType {
-    if data.len() < 8 {
-        return ImageType::Unknown;
-    }
-
     const PNG_SIGNATURE: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-
     const JPEG_SIGNATURE: &[u8] = &[0xFF, 0xD8, 0xFF];
 
     if data.starts_with(PNG_SIGNATURE) {
@@ -57,7 +52,7 @@ pub fn detect_data_image_type(data: &[u8]) -> ImageType {
 ///
 /// # Examples
 /// ```
-/// use crate::imghdr::is_data_image;
+/// use csync_misc::imghdr::is_data_image;
 ///
 /// // PNG data
 /// let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00];

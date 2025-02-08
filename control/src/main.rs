@@ -1,9 +1,11 @@
 mod cani;
+mod cb;
 mod config;
 mod delete;
 mod get;
 mod put;
 mod read;
+mod select;
 mod version;
 mod whoami;
 
@@ -110,11 +112,13 @@ pub struct App {
 #[derive(Subcommand)]
 pub enum Commands {
     Cani(cani::CaniArgs),
+    Cb(cb::CbArgs),
     Config(config::ShowConfigArgs),
     Delete(delete::DeleteArgs),
     Get(get::GetArgs),
     Put(put::PutCommand),
     Read(read::ReadCommand),
+    Select(select::SelectArgs),
     Version(version::VersionArgs),
     Whoami(whoami::WhoamiArgs),
 }
@@ -124,11 +128,13 @@ impl RunCommand for App {
     async fn run(&self) -> Result<()> {
         match &self.command {
             Commands::Cani(args) => args.run().await,
+            Commands::Cb(args) => args.run().await,
             Commands::Config(args) => args.run().await,
             Commands::Delete(args) => args.run().await,
             Commands::Get(args) => args.run().await,
             Commands::Put(args) => args.run().await,
             Commands::Read(args) => args.run().await,
+            Commands::Select(args) => args.run().await,
             Commands::Version(args) => args.run().await,
             Commands::Whoami(args) => args.run().await,
         }

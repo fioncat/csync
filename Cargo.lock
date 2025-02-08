@@ -999,6 +999,7 @@ dependencies = [
  "aes-gcm",
  "anyhow",
  "base64 0.22.1",
+ "bytes",
  "chrono",
  "clap",
  "console",
@@ -1025,10 +1026,21 @@ dependencies = [
 name = "csyncd"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
  "csync_build",
+ "csync_misc",
+ "log",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",
+ "tokio",
 ]
 
 [[package]]
@@ -2727,9 +2739,9 @@ dependencies = [
 
 [[package]]
 name = "native-tls"
-version = "0.2.12"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8614eb2c83d59d1c8cc974dd3f920198647674a0a035e1af1fa58707e317466"
+checksum = "0dab59f8e050d5df8e4dd87d9206fb6f65a483e20ac9fda365ade4fab353196c"
 dependencies = [
  "libc",
  "log",
@@ -4868,13 +4880,13 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.15.0"
+version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8a559c81686f576e8cd0290cd2a24a2a9ad80c98b3478856500fcbd7acd704"
+checksum = "38c246215d7d24f48ae091a2902398798e05d978b24315d6efbc00ede9a8bb91"
 dependencies = [
  "cfg-if",
  "fastrand",
- "getrandom 0.2.15",
+ "getrandom 0.3.1",
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",

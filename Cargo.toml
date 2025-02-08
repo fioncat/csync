@@ -16,3 +16,8 @@ members = [
     "misc",
     "server",
 ]
+
+[profile.release]
+lto = true
+strip = true
+incremental = false
