@@ -1,12 +1,3 @@
-[workspace.package]
-version = "0.5.3"
-edition = "2021"
-license = "MIT"
-authors = ["fioncat"]
-categories = ["command-line-utilities"]
-readme = "README.md"
-repository = "https://github.com/fioncat/csync"
-
 [workspace]
 resolver = "2"
 members = [

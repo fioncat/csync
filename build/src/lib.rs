@@ -42,35 +42,12 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         .add_instructions(&si)?
         .emit()?;
 
-    let describe = exec_git(&["describe", "--tags"]);
-    let sha = exec_git(&["rev-parse", "HEAD"]);
-    let short_sha = exec_git(&["rev-parse", "--short", "HEAD"]);
-
-    let cargo_version = env!("CARGO_PKG_VERSION");
-    let stable_tag = format!("v{cargo_version}");
-    let (mut version, mut build_type) = if stable_tag == describe {
-        if cargo_version.ends_with("alpha") {
-            (cargo_version.to_string(), "alpha")
-        } else if cargo_version.ends_with("beta") {
-            (cargo_version.to_string(), "beta")
-        } else if cargo_version.ends_with("rc") {
-            (cargo_version.to_string(), "pre-release")
-        } else {
-            (cargo_version.to_string(), "stable")
-        }
-    } else {
-        (format!("v{cargo_version}-dev_{short_sha}"), "dev")
-    };
-
-    let uncommitted_count = uncommitted_count();
-    if uncommitted_count > 0 {
-        version = format!("{version}-uncommitted");
-        build_type = "dev-uncommitted";
+    let mut version = exec_git(&["describe", "--tags"]);
+    if uncommitted_count() > 0 {
+        version = format!("{}-dirty", version);
     }
 
     println!("cargo:rustc-env=CSYNC_VERSION={version}");
-    println!("cargo:rustc-env=CSYNC_BUILD_TYPE={build_type}");
-    println!("cargo:rustc-env=CSYNC_SHA={sha}");
     println!(
         "cargo:rustc-env=CSYNC_TARGET={}",
         env::var("TARGET").unwrap()

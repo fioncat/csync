@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/csync server --log-level info
+ExecStart=/usr/local/bin/csync-server
 
 Restart=always
 RestartSec=3
