@@ -5,30 +5,33 @@ use tokio::sync::mpsc;
 
 use crate::sync::send::SyncSender;
 
+use super::config::TrayConfig;
 use super::daemon::{MenuData, TrayDaemon, WriteRequest};
 
 pub struct TrayFactory {
-    cfg: ClientConfig,
+    tray_cfg: TrayConfig,
+    client_cfg: ClientConfig,
 }
 
 impl TrayFactory {
-    pub fn new(cfg: ClientConfig) -> Self {
-        Self { cfg }
+    pub fn new(tray_cfg: TrayConfig, client_cfg: ClientConfig) -> Self {
+        Self {
+            tray_cfg,
+            client_cfg,
+        }
     }
 
     pub async fn build_tray_daemon(
         self,
-        limit: u64,
-        truncate_size: usize,
         sync_tx: SyncSender,
     ) -> Result<(
         TrayDaemon,
         mpsc::Receiver<MenuData>,
         mpsc::Sender<WriteRequest>,
     )> {
-        let user = self.cfg.user.clone();
-        let password = self.cfg.password.clone();
-        let client_factory = ClientFactory::new(self.cfg);
+        let user = self.client_cfg.user.clone();
+        let password = self.client_cfg.password.clone();
+        let client_factory = ClientFactory::new(self.client_cfg);
         let client = client_factory.build_client().await?;
 
         let (menu_tx, menu_rx) = mpsc::channel(500);
@@ -38,6 +41,12 @@ impl TrayFactory {
             latest_text_id: None,
             latest_image_id: None,
             latest_file_id: None,
+            enable_text: self.tray_cfg.text.enable,
+            text_limit: self.tray_cfg.text.limit,
+            enable_image: self.tray_cfg.image.enable,
+            image_limit: self.tray_cfg.image.limit,
+            enable_file: self.tray_cfg.file.enable,
+            file_limit: self.tray_cfg.file.limit,
             client,
             sync_tx,
             token: None,
@@ -45,8 +54,7 @@ impl TrayFactory {
             password,
             menu_tx,
             write_rx,
-            limit,
-            truncate_size,
+            truncate_size: self.tray_cfg.truncate_text,
         };
 
         Ok((tray_daemon, menu_rx, write_tx))

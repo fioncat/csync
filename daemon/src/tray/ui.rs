@@ -14,20 +14,21 @@ pub async fn build_and_run_tray_ui(
     default_menu: MenuData,
     menu_rx: mpsc::Receiver<MenuData>,
     write_tx: mpsc::Sender<WriteRequest>,
+    allow_save: bool,
 ) -> Result<()> {
     info!("Starting system tray event loop");
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             // Hide the app icon from the dock(macOS) while keeping it in the menu bar
             // See: <https://github.com/tauri-apps/tauri/discussions/6038>
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            setup_menu(app.handle(), default_menu)?;
+            setup_menu(app.handle(), default_menu, allow_save)?;
 
             let app_handle = app.handle().clone();
             tokio::spawn(async move {
-                watch_menu_updates(app_handle, menu_rx).await;
+                watch_menu_updates(app_handle, menu_rx, allow_save).await;
             });
             Ok(())
         })
@@ -50,19 +51,23 @@ pub async fn build_and_run_tray_ui(
         .context("run system tray event loop")
 }
 
-async fn watch_menu_updates(app_handle: AppHandle, mut menu_rx: mpsc::Receiver<MenuData>) {
+async fn watch_menu_updates(
+    app_handle: AppHandle,
+    mut menu_rx: mpsc::Receiver<MenuData>,
+    allow_save: bool,
+) {
     info!("Watching menu updates");
     loop {
         let data = menu_rx.recv().await.unwrap();
         info!("Received menu update event");
 
-        if let Err(e) = setup_menu(&app_handle, data) {
+        if let Err(e) = setup_menu(&app_handle, data, allow_save) {
             error!("Failed to update system tray menu: {e:#}");
         }
     }
 }
 
-fn setup_menu(app_handle: &AppHandle, data: MenuData) -> Result<()> {
+fn setup_menu(app_handle: &AppHandle, data: MenuData, allow_save: bool) -> Result<()> {
     let sep = PredefinedMenuItem::separator(app_handle)?;
 
     let menu = Menu::new(app_handle)?;
@@ -84,6 +89,12 @@ fn setup_menu(app_handle: &AppHandle, data: MenuData) -> Result<()> {
         let save_key = format!("{}_save", key);
         let copy_key = format!("{}_copy", key);
 
+        if !allow_save {
+            let menu_item = MenuItem::with_id(app_handle, copy_key, value, true, None::<&str>)?;
+            menu.append(&menu_item)?;
+            continue;
+        }
+
         let menu_item = Submenu::with_id(app_handle, key, value, true)?;
 
         let save_item = MenuItem::with_id(app_handle, save_key, "Save", true, None::<&str>)?;
@@ -103,6 +114,12 @@ fn setup_menu(app_handle: &AppHandle, data: MenuData) -> Result<()> {
 
         let save_key = format!("{}_save", key);
         let copy_key = format!("{}_copy", key);
+
+        if !allow_save {
+            let menu_item = MenuItem::with_id(app_handle, copy_key, value, true, None::<&str>)?;
+            menu.append(&menu_item)?;
+            continue;
+        }
 
         let menu_item = Submenu::with_id(app_handle, key, value, true)?;
 
@@ -191,7 +208,7 @@ fn get_item_id_and_path(
 
     match fields[2] {
         "save" => {
-            let mut dialog = app_handle.dialog().file();
+            let mut dialog = app_handle.dialog().file().set_title("Save csync");
             if is_image {
                 dialog = dialog.add_filter("Image", &["png", "jpg", "jpeg"]);
             }

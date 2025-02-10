@@ -24,6 +24,15 @@ pub struct TrayDaemon {
     pub latest_image_id: Option<u64>,
     pub latest_file_id: Option<u64>,
 
+    pub enable_text: bool,
+    pub text_limit: u64,
+
+    pub enable_image: bool,
+    pub image_limit: u64,
+
+    pub enable_file: bool,
+    pub file_limit: u64,
+
     pub client: Client,
 
     pub sync_tx: SyncSender,
@@ -35,7 +44,6 @@ pub struct TrayDaemon {
     pub menu_tx: mpsc::Sender<MenuData>,
     pub write_rx: mpsc::Receiver<WriteRequest>,
 
-    pub limit: u64,
     pub truncate_size: usize,
 }
 
@@ -176,6 +184,7 @@ impl TrayDaemon {
 
     async fn need_refresh_menu(&mut self) -> Result<bool> {
         self.refresh_token().await?;
+        let mut need_refresh = false;
 
         let latest_text = self
             .client
@@ -188,7 +197,7 @@ impl TrayDaemon {
                 latest_text
             );
             self.latest_text_id = latest_text;
-            return Ok(true);
+            need_refresh = true;
         }
 
         let latest_image = self
@@ -202,7 +211,7 @@ impl TrayDaemon {
                 latest_image
             );
             self.latest_image_id = latest_image;
-            return Ok(true);
+            need_refresh = true;
         }
 
         let latest_file = self
@@ -216,10 +225,10 @@ impl TrayDaemon {
                 latest_file
             );
             self.latest_file_id = latest_file;
-            return Ok(true);
+            need_refresh = true;
         }
 
-        Ok(false)
+        Ok(need_refresh)
     }
 
     pub async fn build_menu(&mut self) -> Result<MenuData> {
@@ -231,32 +240,48 @@ impl TrayDaemon {
             files: vec![],
         };
 
-        let query = Query {
-            limit: Some(self.limit),
-            ..Default::default()
-        };
+        if self.enable_text {
+            let query = Query {
+                limit: Some(self.text_limit),
+                ..Default::default()
+            };
 
-        let texts = self.client.read_texts(query.clone()).await?;
-        for text in texts {
-            let id = text.id;
-            let text = truncate_text(text.content.unwrap(), self.truncate_size);
-            let text = text.replace("\n", "\\n");
-            data.texts.push(MenuTextItem { id, text });
+            let texts = self.client.read_texts(query).await?;
+            for text in texts {
+                let id = text.id;
+                let text = truncate_text(text.content.unwrap(), self.truncate_size);
+                let text = text.replace("\n", "\\n");
+                data.texts.push(MenuTextItem { id, text });
+            }
         }
 
-        let images: Vec<Image> = self.client.list_resources("images", query.clone()).await?;
-        for image in images {
-            let id = image.id;
-            let size = human_bytes(image.size);
-            data.images.push(MenuImageItem { id, size });
+        if self.enable_image {
+            let query = Query {
+                limit: Some(self.image_limit),
+                ..Default::default()
+            };
+
+            let images: Vec<Image> = self.client.list_resources("images", query).await?;
+            for image in images {
+                let id = image.id;
+                let size = human_bytes(image.size);
+                data.images.push(MenuImageItem { id, size });
+            }
         }
 
-        let files: Vec<FileInfo> = self.client.list_resources("files", query).await?;
-        for file in files {
-            let id = file.id;
-            let name = file.name;
-            let size = human_bytes(file.size);
-            data.files.push(MenuFileItem { id, name, size });
+        if self.enable_file {
+            let query = Query {
+                limit: Some(self.file_limit),
+                ..Default::default()
+            };
+
+            let files: Vec<FileInfo> = self.client.list_resources("files", query).await?;
+            for file in files {
+                let id = file.id;
+                let name = file.name;
+                let size = human_bytes(file.size);
+                data.files.push(MenuFileItem { id, name, size });
+            }
         }
 
         Ok(data)
