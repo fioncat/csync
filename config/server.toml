@@ -1,0 +1,53 @@
+bind = "127.0.0.1:7881"
+
+ssl = false
+cert_path = ""
+key_path = ""
+
+keep_alive_secs = 0
+workers = 0
+payload_limit_mib = 3
+
+[authn]
+admin_allow_list = ["127.0.0.1"]
+admin_password = "test123"
+allow_anonymous = false
+
+[authn.token]
+public_key_path = ""
+private_key_path = ""
+expiry = 3600
+
+[authz]
+anonymous_rules = []
+
+[db]
+name = "sqlite"
+
+[db.sqlite]
+memory = false
+path = ""
+
+[db.cache]
+enable = true
+name = "memory"
+
+[secret]
+enable = false
+key_path = ""
+key = ""
+
+[recycle.text]
+enable = true
+max = 100
+keep_hours = 24
+
+[recycle.image]
+enable = true
+max = 5
+keep_hours = 2
+
+[recycle.file]
+enable = true
+max = 10
+keep_hours = 5

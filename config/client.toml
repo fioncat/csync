@@ -1,0 +1,11 @@
+server = "http://127.0.0.1:7881"
+user = "admin"
+password = "test123"
+
+token_path = ""
+cert_path = ""
+
+[secret]
+enable = false
+key_path = ""
+key = ""
