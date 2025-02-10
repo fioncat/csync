@@ -1,0 +1,13 @@
+server_intv_millis = 1000
+
+[text]
+enable = true
+cb_intv_millis = 500
+server_readonly = false
+cb_readonly = false
+
+[image]
+enable = true
+cb_intv_millis = 500
+server_readonly = false
+cb_readonly = false

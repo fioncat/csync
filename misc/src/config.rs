@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::{fs, io};
+use std::{env, fs, io};
 
 use anyhow::{bail, Context, Result};
 use log::warn;
@@ -21,6 +21,8 @@ impl PathSet {
         // Determine config path
         let config_path = if let Some(path) = config_path {
             path
+        } else if let Ok(path) = env::var("CSYNC_CONFIG") {
+            PathBuf::from(path)
         } else if is_root {
             PathBuf::from("/etc/csync")
         } else {
@@ -30,6 +32,8 @@ impl PathSet {
         // Determine data path
         let data_path = if let Some(path) = data_path {
             path
+        } else if let Ok(path) = env::var("CSYNC_DATA") {
+            PathBuf::from(path)
         } else if is_root {
             PathBuf::from("/var/lib/csync")
         } else {
