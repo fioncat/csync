@@ -5,14 +5,7 @@
     "security": {
       "csp": null
     },
-    "windows": [
-      {
-        "width": 100,
-        "height": 100,
-        "visible": false,
-        "center": true
-      }
-    ],
+    "windows": [],
     "trayIcon": {
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true

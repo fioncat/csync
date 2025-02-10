@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
 use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 use tokio::sync::mpsc;
 
@@ -208,13 +208,7 @@ fn get_item_id_and_path(
 
     match fields[2] {
         "save" => {
-            let window = app_handle.get_webview_window("main").unwrap();
-            // let window = app_handle.get_window("main").unwrap();
-            let mut dialog = app_handle
-                .dialog()
-                .file()
-                .set_title("Save csync")
-                .set_parent(&window);
+            let mut dialog = app_handle.dialog().file().set_title("Save csync");
             if is_image {
                 dialog = dialog.add_filter("Image", &["png", "jpg", "jpeg"]);
             }
