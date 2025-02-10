@@ -544,6 +544,22 @@ impl Client {
             .await
     }
 
+    pub async fn get_resource_option<T>(
+        &self,
+        name: &str,
+        id: String,
+    ) -> Result<Option<T>, RequestError>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let result = self.get_resource::<T>(name, id).await;
+        match result {
+            Ok(data) => Ok(Some(data)),
+            Err(RequestError::Server { code, .. }) if code == StatusCode::NOT_FOUND => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// List resources by name with query parameters
     pub async fn list_resources<T>(&self, name: &str, query: Query) -> Result<Vec<T>, RequestError>
     where

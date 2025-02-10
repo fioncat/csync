@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::sync::send::SyncSender;
 
-use super::daemon::TrayDaemon;
+use super::daemon::{MenuData, TrayDaemon, WriteRequest};
 
 pub struct TrayFactory {
     cfg: ClientConfig,
@@ -23,8 +23,8 @@ impl TrayFactory {
         sync_tx: SyncSender,
     ) -> Result<(
         TrayDaemon,
-        mpsc::Receiver<Vec<(String, String)>>,
-        mpsc::Sender<u64>,
+        mpsc::Receiver<MenuData>,
+        mpsc::Sender<WriteRequest>,
     )> {
         let user = self.cfg.user.clone();
         let password = self.cfg.password.clone();
@@ -35,7 +35,9 @@ impl TrayFactory {
         let (write_tx, write_rx) = mpsc::channel(500);
 
         let tray_daemon = TrayDaemon {
-            latest_id: None,
+            latest_text_id: None,
+            latest_image_id: None,
+            latest_file_id: None,
             client,
             sync_tx,
             token: None,
