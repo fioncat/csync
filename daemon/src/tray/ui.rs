@@ -1,11 +1,14 @@
 #![allow(deprecated)]
 
+use std::fs;
+
 use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
 use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_shell::ShellExt;
 use tokio::sync::mpsc;
 
 use super::daemon::{MenuData, WriteRequest};
@@ -47,6 +50,7 @@ pub async fn build_and_run_tray_ui(
             });
         })
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .run(tauri::generate_context!())
         .context("run system tray event loop")
 }
@@ -208,10 +212,35 @@ fn get_item_id_and_path(
 
     match fields[2] {
         "save" => {
-            let mut dialog = app_handle.dialog().file().set_title("Save csync");
+            let window = match app_handle.get_webview_window("save_file") {
+                Some(window) => window,
+                None => WebviewWindowBuilder::new(
+                    app_handle,
+                    "save_file",
+                    WebviewUrl::App("save_file.html".into()),
+                )
+                .center()
+                .visible(false)
+                .decorations(false)
+                .fullscreen(true)
+                .transparent(true)
+                .build()?,
+            };
+
+            // let shell = app_handle.shell();
+            // shell.open("/home/wenqian/Pictures/test.png", None)?;
+
+            let mut dialog = app_handle
+                .dialog()
+                .file()
+                .set_parent(&window)
+                .set_title("Save csync");
             if is_image {
                 dialog = dialog.add_filter("Image", &["png", "jpg", "jpeg"]);
             }
+
+            window.hide()?;
+            // window.close()?;
 
             let path = dialog.blocking_save_file();
             match path {
