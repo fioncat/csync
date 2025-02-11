@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use anyhow::{bail, Result};
@@ -261,7 +261,7 @@ impl ApiHandler {
         Ok(())
     }
 
-    pub async fn save_file(&self, id: u64, path: &Path) -> Result<()> {
+    pub async fn save_file(&self, id: u64, path: &Path) -> Result<PathBuf> {
         info!("Saving file {id} to file: {}", path.display());
 
         let client = self.build_client().await?;
@@ -275,7 +275,7 @@ impl ApiHandler {
             .open(&path)?;
         file.write_all(&data)?;
 
-        Ok(())
+        Ok(path)
     }
 
     pub async fn copy_file(&self, id: u64) -> Result<()> {
@@ -334,6 +334,13 @@ impl ApiHandler {
     pub fn update_auto_refresh(&self) {
         let current = self.get_auto_refresh();
         self.auto_refresh.lock().unwrap().replace(!current);
+    }
+
+    pub fn get_tmp_path(&self, name: &str) -> PathBuf {
+        if name == "" {
+            return self.ps.tmp_path.clone();
+        }
+        self.ps.tmp_path.join(name)
     }
 
     async fn build_client(&self) -> Result<Client> {

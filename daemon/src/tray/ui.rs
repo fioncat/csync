@@ -1,13 +1,16 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
 use tauri::menu::{
     AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
 use tauri::{AppHandle, Wry};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 use super::api::{ApiHandler, MenuData};
 
@@ -112,6 +115,58 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
     let sep = PredefinedMenuItem::separator(&app)?;
     let menu = Menu::new(&app)?;
 
+    if !data.texts.is_empty() {
+        let text_sep = MenuItem::new(&app, "Texts", false, None::<&str>)?;
+        menu.append(&text_sep)?;
+    }
+
+    for text in data.texts {
+        let key = format!("text_{}", text.id);
+        let value = text.text;
+
+        let submenu = build_resource_submenu(&app, key, value, "Text")?;
+        menu.append(&submenu)?;
+    }
+
+    menu.append(&sep)?;
+
+    if !data.images.is_empty() {
+        let image_sep = MenuItem::new(&app, "Images", false, None::<&str>)?;
+        menu.append(&image_sep)?;
+    }
+
+    for image in data.images {
+        let key = format!("image_{}", image.id);
+        let value = format!("<{}>", image.size);
+
+        let submenu = build_resource_submenu(&app, key, value, "Image")?;
+        menu.append(&submenu)?;
+    }
+
+    menu.append(&sep)?;
+
+    if !data.files.is_empty() {
+        let file_sep = MenuItem::new(&app, "Files", false, None::<&str>)?;
+        menu.append(&file_sep)?;
+    }
+
+    for file in data.files {
+        let key = format!("file_{}", file.id);
+        let value = format!("<{}, {}>", file.name, file.size);
+
+        let submenu = build_resource_submenu(&app, key, value, "File")?;
+        menu.append(&submenu)?;
+    }
+
+    menu.append(&sep)?;
+
+    let upload_item = Submenu::with_id(&app, "upload", "Upload", true)?;
+    let upload_text = MenuItem::with_id(&app, "upload_text", "Upload Text", true, None::<&str>)?;
+    let upload_image = MenuItem::with_id(&app, "upload_image", "Upload Image", true, None::<&str>)?;
+    let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
+    upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
+    menu.append(&upload_item)?;
+
     let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?;
     menu.append(&refresh)?;
 
@@ -124,43 +179,6 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         None::<&str>,
     )?;
     menu.append(&auto_refresh)?;
-
-    let upload_item = Submenu::with_id(&app, "upload", "Upload", true)?;
-    let upload_text = MenuItem::with_id(&app, "upload_text", "Upload Text", true, None::<&str>)?;
-    let upload_image = MenuItem::with_id(&app, "upload_image", "Upload Image", true, None::<&str>)?;
-    let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
-    upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
-    menu.append(&upload_item)?;
-
-    menu.append(&sep)?;
-
-    for text in data.texts {
-        let key = format!("text_{}", text.id);
-        let value = text.text;
-
-        let submenu = build_resource_submenu(&app, key, value, "Text")?;
-        menu.append(&submenu)?;
-    }
-
-    menu.append(&sep)?;
-
-    for image in data.images {
-        let key = format!("image_{}", image.id);
-        let value = format!("<Image, {}>", image.size);
-
-        let submenu = build_resource_submenu(&app, key, value, "Image")?;
-        menu.append(&submenu)?;
-    }
-
-    menu.append(&sep)?;
-
-    for file in data.files {
-        let key = format!("file_{}", file.id);
-        let value = format!("<File, {}, {}>", file.name, file.size);
-
-        let submenu = build_resource_submenu(&app, key, value, "File")?;
-        menu.append(&submenu)?;
-    }
 
     menu.append(&sep)?;
 
@@ -222,6 +240,122 @@ fn build_resource_submenu(
 
 async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result<()> {
     info!("Selected menu item: {id}");
+
+    if id.starts_with("upload_") {
+        let kind = id.strip_prefix("upload_").unwrap();
+        let path = match kind {
+            "text" => app
+                .dialog()
+                .file()
+                .set_title("Upload Text")
+                .blocking_pick_file(),
+            "image" => app
+                .dialog()
+                .file()
+                .set_title("Upload Image")
+                .add_filter("Image", &["png", "jpg", "jpeg"])
+                .blocking_pick_file(),
+            "file" => app
+                .dialog()
+                .file()
+                .set_title("Upload File")
+                .blocking_pick_file(),
+            _ => unreachable!(),
+        };
+
+        if let Some(path) = path {
+            let path = PathBuf::from(path.to_string());
+            return match kind {
+                "text" => api.upload_text(&path).await,
+                "image" => api.upload_image(&path).await,
+                "file" => api.upload_file(&path).await,
+                _ => unreachable!(),
+            };
+        }
+
+        return Ok(());
+    }
+
+    let fields = id.split('_').collect::<Vec<_>>();
+    if fields.len() != 3 {
+        bail!("invalid menu item id: {id}");
+    }
+
+    let kind = fields[0];
+    let id = fields[1].parse::<u64>()?;
+    let action = fields[2];
+
+    match action {
+        "copy" => match kind {
+            "text" => api.copy_text(id).await?,
+            "image" => api.copy_image(id).await?,
+            "file" => api.copy_file(id).await?,
+            _ => unreachable!(),
+        },
+        "open" => {
+            let path = match kind {
+                "text" => {
+                    let path = api.get_tmp_path("text.txt");
+                    api.save_text(id, &path).await?;
+                    path
+                }
+                "image" => {
+                    let path = api.get_tmp_path("image.png");
+                    api.save_image(id, &path).await?;
+                    path
+                }
+                "file" => {
+                    let path = api.get_tmp_path("");
+                    api.save_file(id, &path).await?
+                }
+                _ => unreachable!(),
+            };
+
+            let opener = app.opener();
+            let path = format!("{}", path.display());
+            opener.open_path(&path, None::<&str>)?;
+        }
+        "save" => {
+            let path = match kind {
+                "text" => app
+                    .dialog()
+                    .file()
+                    .set_title("Save Text")
+                    .blocking_save_file(),
+                "image" => app
+                    .dialog()
+                    .file()
+                    .set_title("Save Image")
+                    .add_filter("Image", &["png", "jpg", "jpeg"])
+                    .blocking_save_file(),
+                "file" => app
+                    .dialog()
+                    .file()
+                    .set_title("Save File")
+                    .blocking_pick_folder(),
+                _ => unreachable!(),
+            };
+
+            if let Some(path) = path {
+                let path = PathBuf::from(path.to_string());
+                match kind {
+                    "text" => api.save_text(id, &path).await?,
+                    "image" => api.save_image(id, &path).await?,
+                    "file" => {
+                        api.save_file(id, &path).await?;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        "delete" => match kind {
+            "text" => api.delete_text(id).await?,
+            "image" => api.delete_image(id).await?,
+            "file" => api.delete_file(id).await?,
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    }
 
     refresh_menu(app, api).await?;
     Ok(())
