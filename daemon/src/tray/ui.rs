@@ -244,6 +244,12 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
     if id.starts_with("upload_") {
         let kind = id.strip_prefix("upload_").unwrap();
         let path = match kind {
+            // FIXME: Currently, Tauri's dialog doesn't support customizing the popup
+            // position. This poses a problem for pure system tray applications like ours.
+            // Specifically, on macOS, the dialog pops up above the menu bar, which isn't
+            // user-friendly. We currently have no effective solution for this issue.
+            // We need to wait for official support, see:
+            //     <https://github.com/tauri-apps/plugins-workspace/issues/1306>
             "text" => app
                 .dialog()
                 .file()
