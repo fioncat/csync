@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
 use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::mpsc;
@@ -48,6 +48,12 @@ pub async fn build_and_run_tray_ui(
             tokio::spawn(async move {
                 handle_event(app_handle, id, write_tx).await;
             });
+        })
+        .on_window_event(|_app, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+            }
+            _ => {}
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
@@ -223,7 +229,7 @@ fn get_item_id_and_path(
                 .visible(false)
                 .decorations(false)
                 .fullscreen(true)
-                .transparent(true)
+                // .transparent(true)
                 .build()?,
             };
 
@@ -239,8 +245,8 @@ fn get_item_id_and_path(
                 dialog = dialog.add_filter("Image", &["png", "jpg", "jpeg"]);
             }
 
-            window.hide()?;
-            // window.close()?;
+            // window.hide()?;
+            window.close()?;
 
             let path = dialog.blocking_save_file();
             match path {
