@@ -127,7 +127,7 @@ fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
 
     menu.append(&sep)?;
 
-    let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, None::<&str>)?;
+    let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?;
     menu.append(&refresh)?;
 
     let auto_refresh = CheckMenuItem::with_id(
@@ -135,7 +135,7 @@ fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
         "auto_refresh",
         "Auto Refresh",
         true,
-        false,
+        true,
         None::<&str>,
     )?;
     menu.append(&auto_refresh)?;
@@ -159,7 +159,7 @@ fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
     )?;
     menu.append(&about)?;
 
-    let quit_item = MenuItem::with_id(&app, "quit", "Quit", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(&app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
     menu.append(&quit_item)?;
 
     let tray = app.tray_by_id("main").unwrap();
@@ -200,6 +200,8 @@ fn build_resource_submenu(
 
 async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result<()> {
     info!("Selected menu item: {id}");
+
+    refresh_menu(app, api).await?;
     Ok(())
 }
 
