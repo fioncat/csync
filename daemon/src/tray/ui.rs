@@ -8,7 +8,7 @@ use log::{error, info};
 use tauri::menu::{
     AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
-use tauri::{AppHandle, Wry};
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -54,6 +54,12 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
                 "refresh" => {
                     tokio::spawn(async move {
                         handle_result(refresh_menu(app, api).await);
+                    });
+                    return;
+                }
+                "settings" => {
+                    tokio::spawn(async move {
+                        handle_result(show_settings(app, api).await);
                     });
                     return;
                 }
@@ -181,6 +187,9 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
     menu.append(&auto_refresh)?;
 
     menu.append(&sep)?;
+
+    let settings = MenuItem::with_id(&app, "settings", "Settings", true, None::<&str>)?;
+    menu.append(&settings)?;
 
     let year = Local::now().year();
     let copyright = format!("Copyright (c) {year} {}", env!("CARGO_PKG_AUTHORS"));
@@ -364,6 +373,18 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
     }
 
     refresh_menu(app, api).await?;
+    Ok(())
+}
+
+async fn show_settings(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
+    let window = WebviewWindowBuilder::new(
+        &app,
+        "settings",
+        WebviewUrl::App(PathBuf::from("settings.html")),
+    )
+    .resizable(false)
+    .build()?;
+    window.show()?;
     Ok(())
 }
 
