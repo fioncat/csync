@@ -1,12 +1,14 @@
 #![allow(deprecated)]
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
-use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::TrayIconEvent;
+use tauri::menu::{
+    AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
+};
 use tauri::{AppHandle, Wry};
 
 use super::api::{ApiHandler, MenuData};
@@ -14,21 +16,10 @@ use super::api::{ApiHandler, MenuData};
 pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
     let api = Arc::new(api);
 
-    let icon_api = api.clone();
+    let refresh_api = api.clone();
 
     info!("Starting system tray event loop");
     tauri::Builder::default()
-        .on_tray_icon_event(move |app, event| {
-            println!("event!!");
-            if let TrayIconEvent::Click { .. } = event {
-                let app = app.clone();
-                let api = icon_api.clone();
-
-                tokio::spawn(async move {
-                    handle_result(handle_icon_click(app, api).await);
-                });
-            }
-        })
         .setup(move |app| {
             // Hide the app icon from the dock(macOS) while keeping it in the menu bar
             // See: <https://github.com/tauri-apps/tauri/discussions/6038>
@@ -36,6 +27,11 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             setup_menu(app.handle().clone(), default_menu)?;
+            let api = refresh_api.clone();
+            let app = app.handle().clone();
+            tokio::spawn(async move {
+                auto_refresh_menu(app, api).await;
+            });
             Ok(())
         })
         .on_menu_event(move |app, event| {
@@ -52,10 +48,40 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
         .context("run system tray event loop")
 }
 
-async fn handle_icon_click(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
-    info!("Icon clicked, refreshing menu");
+async fn auto_refresh_menu(app: AppHandle, api: Arc<ApiHandler>) {
+    let mut intv = tokio::time::interval(Duration::from_secs(1));
+    let mut current = String::new();
+    loop {
+        intv.tick().await;
+
+        let latest = match api.get_latest().await {
+            Ok(latest) => latest,
+            Err(err) => {
+                error!("Failed to get latest: {err:#}");
+                continue;
+            }
+        };
+
+        if current.is_empty() {
+            current = latest;
+            continue;
+        }
+
+        if current != latest {
+            current = latest;
+            info!("Latest changed to '{current}', refreshing menu");
+            if let Err(err) = refresh_menu(app.clone(), api.clone()).await {
+                error!("Auo refresh menu error: {err:#}");
+                continue;
+            }
+        }
+    }
+}
+
+async fn refresh_menu(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
     let data = api.build_menu().await?;
-    setup_menu(app, data)
+    setup_menu(app, data)?;
+    Ok(())
 }
 
 fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
@@ -98,6 +124,23 @@ fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
     let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
     upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
     menu.append(&upload_item)?;
+
+    menu.append(&sep)?;
+
+    let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, None::<&str>)?;
+    menu.append(&refresh)?;
+
+    let auto_refresh = CheckMenuItem::with_id(
+        &app,
+        "auto_refresh",
+        "Auto Refresh",
+        true,
+        false,
+        None::<&str>,
+    )?;
+    menu.append(&auto_refresh)?;
+
+    menu.append(&sep)?;
 
     let year = Local::now().year();
     let copyright = format!("Copyright (c) {year} {}", env!("CARGO_PKG_AUTHORS"));
@@ -162,6 +205,6 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
 
 fn handle_result(result: Result<()>) {
     if let Err(err) = result {
-        error!("Tray Error: {err}");
+        error!("Tray Error: {err:#}");
     }
 }

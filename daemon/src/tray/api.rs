@@ -12,7 +12,7 @@ use csync_misc::imghdr::is_data_image;
 use csync_misc::types::file::FileInfo;
 use csync_misc::types::image::Image;
 use csync_misc::types::request::Query;
-use csync_misc::types::text::truncate_text;
+use csync_misc::types::text::{truncate_text, Text};
 use log::info;
 
 use crate::sync::send::SyncSender;
@@ -292,6 +292,28 @@ impl ApiHandler {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn get_latest(&self) -> Result<String> {
+        let client = self.build_client().await?;
+
+        let text = client
+            .get_resource_option::<Text>("texts", "latest".to_string())
+            .await?
+            .map(|text| text.id)
+            .unwrap_or_default();
+        let image = client
+            .get_resource_option::<Image>("images", "latest".to_string())
+            .await?
+            .map(|img| img.id)
+            .unwrap_or_default();
+        let file = client
+            .get_resource_option::<FileInfo>("files", "latest".to_string())
+            .await?
+            .map(|f| f.id)
+            .unwrap_or_default();
+
+        Ok(format!("{text}_{image}_{file}"))
     }
 
     async fn build_client(&self) -> Result<Client> {

@@ -6,7 +6,6 @@ use std::{fs, io};
 
 use anyhow::{bail, Context, Result};
 use chrono::Local;
-use log::info;
 use reqwest::{Certificate, Method, StatusCode, Url};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -177,12 +176,6 @@ impl Client {
                 Self::MAX_TIME_DELTA_WITH_SERVER
             )));
         }
-
-        let client_ip = resp.client_ip.unwrap_or(String::from("unknown"));
-        info!(
-            "Connected to server '{}', with client ip '{client_ip}'",
-            self.url
-        );
 
         Ok(())
     }
