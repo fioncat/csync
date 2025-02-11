@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,6 +11,7 @@ use tauri::{AppHandle, Wry};
 
 use super::api::{ApiHandler, MenuData};
 
+#[allow(deprecated)]
 pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
     let api = Arc::new(api);
 
@@ -26,7 +25,7 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            setup_menu(app.handle().clone(), default_menu)?;
+            setup_menu(app.handle().clone(), default_menu, refresh_api.clone())?;
             let api = refresh_api.clone();
             let app = app.handle().clone();
             tokio::spawn(async move {
@@ -37,6 +36,27 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
         .on_menu_event(move |app, event| {
             let app = app.clone();
             let api = api.clone();
+
+            match event.id.as_ref() {
+                "quit" => {
+                    info!("Quit application");
+                    app.exit(0);
+                    return;
+                }
+                "auto_refresh" => {
+                    api.update_auto_refresh();
+                    info!("Auto refresh set to {}", api.get_auto_refresh());
+                    return;
+                }
+                "refresh" => {
+                    tokio::spawn(async move {
+                        handle_result(refresh_menu(app, api).await);
+                    });
+                    return;
+                }
+                _ => {}
+            }
+
             tokio::spawn(async move {
                 handle_result(handle_select(app, event.id.as_ref(), api).await);
             });
@@ -53,6 +73,10 @@ async fn auto_refresh_menu(app: AppHandle, api: Arc<ApiHandler>) {
     let mut current = String::new();
     loop {
         intv.tick().await;
+
+        if !api.get_auto_refresh() {
+            continue;
+        }
 
         let latest = match api.get_latest().await {
             Ok(latest) => latest,
@@ -80,13 +104,35 @@ async fn auto_refresh_menu(app: AppHandle, api: Arc<ApiHandler>) {
 
 async fn refresh_menu(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
     let data = api.build_menu().await?;
-    setup_menu(app, data)?;
+    setup_menu(app, data, api)?;
     Ok(())
 }
 
-fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
+fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()> {
     let sep = PredefinedMenuItem::separator(&app)?;
     let menu = Menu::new(&app)?;
+
+    let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?;
+    menu.append(&refresh)?;
+
+    let auto_refresh = CheckMenuItem::with_id(
+        &app,
+        "auto_refresh",
+        "Auto Refresh",
+        true,
+        api.get_auto_refresh(),
+        None::<&str>,
+    )?;
+    menu.append(&auto_refresh)?;
+
+    let upload_item = Submenu::with_id(&app, "upload", "Upload", true)?;
+    let upload_text = MenuItem::with_id(&app, "upload_text", "Upload Text", true, None::<&str>)?;
+    let upload_image = MenuItem::with_id(&app, "upload_image", "Upload Image", true, None::<&str>)?;
+    let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
+    upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
+    menu.append(&upload_item)?;
+
+    menu.append(&sep)?;
 
     for text in data.texts {
         let key = format!("text_{}", text.id);
@@ -115,30 +161,6 @@ fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
         let submenu = build_resource_submenu(&app, key, value, "File")?;
         menu.append(&submenu)?;
     }
-
-    menu.append(&sep)?;
-
-    let upload_item = Submenu::with_id(&app, "upload", "Upload", true)?;
-    let upload_text = MenuItem::with_id(&app, "upload_text", "Upload Text", true, None::<&str>)?;
-    let upload_image = MenuItem::with_id(&app, "upload_image", "Upload Image", true, None::<&str>)?;
-    let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
-    upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
-    menu.append(&upload_item)?;
-
-    menu.append(&sep)?;
-
-    let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?;
-    menu.append(&refresh)?;
-
-    let auto_refresh = CheckMenuItem::with_id(
-        &app,
-        "auto_refresh",
-        "Auto Refresh",
-        true,
-        true,
-        None::<&str>,
-    )?;
-    menu.append(&auto_refresh)?;
 
     menu.append(&sep)?;
 

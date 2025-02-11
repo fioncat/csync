@@ -1,7 +1,9 @@
+use std::cell::RefCell;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
+use std::sync::Mutex;
 
 use anyhow::{bail, Result};
 use csync_misc::client::factory::ClientFactory;
@@ -31,6 +33,8 @@ pub struct ApiHandler {
 
     enable_file: bool,
     file_limit: u64,
+
+    auto_refresh: Mutex<RefCell<bool>>,
 }
 
 pub struct MenuData {
@@ -67,6 +71,7 @@ impl ApiHandler {
             image_limit: 0,
             enable_file: false,
             file_limit: 0,
+            auto_refresh: Mutex::new(RefCell::new(true)),
         }
     }
 
@@ -314,6 +319,21 @@ impl ApiHandler {
             .unwrap_or_default();
 
         Ok(format!("{text}_{image}_{file}"))
+    }
+
+    #[allow(clippy::needless_bool)]
+    pub fn get_auto_refresh(&self) -> bool {
+        let auto_refresh = self.auto_refresh.lock().unwrap();
+        if *auto_refresh.borrow() {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn update_auto_refresh(&self) {
+        let current = self.get_auto_refresh();
+        self.auto_refresh.lock().unwrap().replace(!current);
     }
 
     async fn build_client(&self) -> Result<Client> {
