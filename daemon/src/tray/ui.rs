@@ -1,260 +1,167 @@
 #![allow(deprecated)]
 
-use std::fs;
+use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
 use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
-use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_shell::ShellExt;
-use tokio::sync::mpsc;
+use tauri::tray::TrayIconEvent;
+use tauri::{AppHandle, Wry};
 
-use super::daemon::{MenuData, WriteRequest};
+use super::api::{ApiHandler, MenuData};
 
-pub async fn build_and_run_tray_ui(
-    default_menu: MenuData,
-    menu_rx: mpsc::Receiver<MenuData>,
-    write_tx: mpsc::Sender<WriteRequest>,
-    allow_save: bool,
-) -> Result<()> {
+pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
+    let api = Arc::new(api);
+
+    let icon_api = api.clone();
+
     info!("Starting system tray event loop");
     tauri::Builder::default()
+        .on_tray_icon_event(move |app, event| {
+            println!("event!!");
+            if let TrayIconEvent::Click { .. } = event {
+                let app = app.clone();
+                let api = icon_api.clone();
+
+                tokio::spawn(async move {
+                    handle_result(handle_icon_click(app, api).await);
+                });
+            }
+        })
         .setup(move |app| {
             // Hide the app icon from the dock(macOS) while keeping it in the menu bar
             // See: <https://github.com/tauri-apps/tauri/discussions/6038>
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            setup_menu(app.handle(), default_menu, allow_save)?;
-
-            let app_handle = app.handle().clone();
-            tokio::spawn(async move {
-                watch_menu_updates(app_handle, menu_rx, allow_save).await;
-            });
+            setup_menu(app.handle().clone(), default_menu)?;
             Ok(())
         })
         .on_menu_event(move |app, event| {
-            let id = event.id.as_ref();
-            if id == "quit" {
-                info!("Received quit event");
-                std::process::exit(0);
-            }
-
-            let id = id.to_string();
-            let write_tx = write_tx.clone();
-            let app_handle = app.clone();
+            let app = app.clone();
+            let api = api.clone();
             tokio::spawn(async move {
-                handle_event(app_handle, id, write_tx).await;
+                handle_result(handle_select(app, event.id.as_ref(), api).await);
             });
         })
-        .on_window_event(|_app, event| match event {
-            WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-            }
-            _ => {}
-        })
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .run(tauri::generate_context!())
         .context("run system tray event loop")
 }
 
-async fn watch_menu_updates(
-    app_handle: AppHandle,
-    mut menu_rx: mpsc::Receiver<MenuData>,
-    allow_save: bool,
-) {
-    info!("Watching menu updates");
-    loop {
-        let data = menu_rx.recv().await.unwrap();
-        info!("Received menu update event");
-
-        if let Err(e) = setup_menu(&app_handle, data, allow_save) {
-            error!("Failed to update system tray menu: {e:#}");
-        }
-    }
+async fn handle_icon_click(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
+    info!("Icon clicked, refreshing menu");
+    let data = api.build_menu().await?;
+    setup_menu(app, data)
 }
 
-fn setup_menu(app_handle: &AppHandle, data: MenuData, allow_save: bool) -> Result<()> {
-    let sep = PredefinedMenuItem::separator(app_handle)?;
-
-    let menu = Menu::new(app_handle)?;
+fn setup_menu(app: AppHandle, data: MenuData) -> Result<()> {
+    let sep = PredefinedMenuItem::separator(&app)?;
+    let menu = Menu::new(&app)?;
 
     for text in data.texts {
         let key = format!("text_{}", text.id);
         let value = text.text;
 
-        let menu_item = MenuItem::with_id(app_handle, key, value, true, None::<&str>)?;
-        menu.append(&menu_item)?;
+        let submenu = build_resource_submenu(&app, key, value, "Text")?;
+        menu.append(&submenu)?;
     }
 
     menu.append(&sep)?;
 
     for image in data.images {
         let key = format!("image_{}", image.id);
-        let value = format!("Image: <{}>", image.size);
+        let value = format!("<Image, {}>", image.size);
 
-        let save_key = format!("{}_save", key);
-        let copy_key = format!("{}_copy", key);
-
-        if !allow_save {
-            let menu_item = MenuItem::with_id(app_handle, copy_key, value, true, None::<&str>)?;
-            menu.append(&menu_item)?;
-            continue;
-        }
-
-        let menu_item = Submenu::with_id(app_handle, key, value, true)?;
-
-        let save_item = MenuItem::with_id(app_handle, save_key, "Save", true, None::<&str>)?;
-        menu_item.append(&save_item)?;
-
-        let copy_item = MenuItem::with_id(app_handle, copy_key, "Copy", true, None::<&str>)?;
-        menu_item.append(&copy_item)?;
-
-        menu.append(&menu_item)?;
+        let submenu = build_resource_submenu(&app, key, value, "Image")?;
+        menu.append(&submenu)?;
     }
 
     menu.append(&sep)?;
 
     for file in data.files {
         let key = format!("file_{}", file.id);
-        let value = format!("File: <{}, {}>", file.name, file.size);
+        let value = format!("<File, {}, {}>", file.name, file.size);
 
-        let save_key = format!("{}_save", key);
-        let copy_key = format!("{}_copy", key);
-
-        if !allow_save {
-            let menu_item = MenuItem::with_id(app_handle, copy_key, value, true, None::<&str>)?;
-            menu.append(&menu_item)?;
-            continue;
-        }
-
-        let menu_item = Submenu::with_id(app_handle, key, value, true)?;
-
-        let save_item = MenuItem::with_id(app_handle, save_key, "Save", true, None::<&str>)?;
-        menu_item.append(&save_item)?;
-
-        let copy_item = MenuItem::with_id(app_handle, copy_key, "Copy", true, None::<&str>)?;
-        menu_item.append(&copy_item)?;
-
-        menu.append(&menu_item)?;
+        let submenu = build_resource_submenu(&app, key, value, "File")?;
+        menu.append(&submenu)?;
     }
 
     menu.append(&sep)?;
+
+    let upload_item = Submenu::with_id(&app, "upload", "Upload", true)?;
+    let upload_text = MenuItem::with_id(&app, "upload_text", "Upload Text", true, None::<&str>)?;
+    let upload_image = MenuItem::with_id(&app, "upload_image", "Upload Image", true, None::<&str>)?;
+    let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
+    upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
+    menu.append(&upload_item)?;
 
     let year = Local::now().year();
     let copyright = format!("Copyright (c) {year} {}", env!("CARGO_PKG_AUTHORS"));
 
     let about = PredefinedMenuItem::about(
-        app_handle,
+        &app,
         Some("About"),
         Some(
             AboutMetadataBuilder::new()
                 .name(Some("Csync Daemon"))
                 .version(Some(env!("CSYNC_VERSION")))
                 .copyright(Some(copyright))
-                .icon(app_handle.default_window_icon().cloned())
+                .icon(app.default_window_icon().cloned())
                 .build(),
         ),
     )?;
     menu.append(&about)?;
 
-    let quit_item = MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(&app, "quit", "Quit", true, None::<&str>)?;
     menu.append(&quit_item)?;
 
-    let tray = app_handle.tray_by_id("main").unwrap();
+    let tray = app.tray_by_id("main").unwrap();
     tray.set_menu(Some(menu))?;
+
     Ok(())
 }
 
-async fn handle_event(app_handle: AppHandle, id: String, write_tx: mpsc::Sender<WriteRequest>) {
-    let req = if id.starts_with("text_") {
-        let id = match id.strip_prefix("text_").unwrap().parse::<u64>() {
-            Ok(id) => id,
-            Err(e) => {
-                error!("Failed to parse text menu item ID: {e:#}");
-                return;
-            }
-        };
+fn build_resource_submenu(
+    app: &AppHandle,
+    key: String,
+    value: String,
+    name: &str,
+) -> Result<Submenu<Wry>> {
+    let submenu = Submenu::with_id(app, &key, value, true)?;
 
-        WriteRequest::Text(id)
-    } else if id.starts_with("image_") || id.starts_with("file_") {
-        let is_image = id.starts_with("image_");
-        let (id, path) = match get_item_id_and_path(&app_handle, &id, is_image) {
-            Ok((id, path)) => (id, path),
-            Err(e) => {
-                error!("Failed to parse image/file menu item ID: {e:#}");
-                return;
-            }
-        };
+    let copy_key = format!("{key}_copy");
+    let copy_item = MenuItem::with_id(app, copy_key, format!("Copy {name}"), true, None::<&str>)?;
 
-        if is_image {
-            WriteRequest::Image(id, path)
-        } else {
-            WriteRequest::File(id, path)
-        }
-    } else {
-        error!("Unknown menu item ID: {id}");
-        return;
-    };
+    let open_key = format!("{key}_open");
+    let open_item = MenuItem::with_id(app, open_key, format!("Open {name}"), true, None::<&str>)?;
 
-    info!("Sending menu item click event: {:?}", req);
-    write_tx.send(req).await.unwrap();
+    let save_key = format!("{key}_save");
+    let save_item = MenuItem::with_id(app, save_key, format!("Save {name}"), true, None::<&str>)?;
+
+    let delete_key = format!("{key}_delete");
+    let delete_item = MenuItem::with_id(
+        app,
+        delete_key,
+        format!("Delete {name}"),
+        true,
+        None::<&str>,
+    )?;
+
+    submenu.append_items(&[&copy_item, &open_item, &save_item, &delete_item])?;
+    Ok(submenu)
 }
 
-fn get_item_id_and_path(
-    app_handle: &AppHandle,
-    id: &str,
-    is_image: bool,
-) -> Result<(u64, Option<String>)> {
-    let fields = id.split('_').collect::<Vec<_>>();
-    if fields.len() != 3 {
-        bail!("invalid length");
-    }
+async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result<()> {
+    info!("Selected menu item: {id}");
+    Ok(())
+}
 
-    let id = fields[1].parse::<u64>().context("parse id")?;
-
-    match fields[2] {
-        "save" => {
-            let window = match app_handle.get_webview_window("save_file") {
-                Some(window) => window,
-                None => WebviewWindowBuilder::new(
-                    app_handle,
-                    "save_file",
-                    WebviewUrl::App("save_file.html".into()),
-                )
-                .center()
-                .visible(false)
-                .decorations(false)
-                .fullscreen(true)
-                // .transparent(true)
-                .build()?,
-            };
-
-            // let shell = app_handle.shell();
-            // shell.open("/home/wenqian/Pictures/test.png", None)?;
-
-            let mut dialog = app_handle
-                .dialog()
-                .file()
-                .set_parent(&window)
-                .set_title("Save csync");
-            if is_image {
-                dialog = dialog.add_filter("Image", &["png", "jpg", "jpeg"]);
-            }
-
-            // window.hide()?;
-            window.close()?;
-
-            let path = dialog.blocking_save_file();
-            match path {
-                Some(path) => Ok((id, Some(path.to_string()))),
-                None => bail!("no path selected"),
-            }
-        }
-        "copy" => Ok((id, None)),
-        _ => bail!("invalid action {}", fields[2]),
+fn handle_result(result: Result<()>) {
+    if let Err(err) = result {
+        error!("Tray Error: {err}");
     }
 }

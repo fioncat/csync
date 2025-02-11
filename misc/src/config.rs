@@ -11,6 +11,7 @@ pub struct PathSet {
     pub config_path: PathBuf,
     pub data_path: PathBuf,
     pub pki_path: PathBuf,
+    pub tmp_path: PathBuf,
 }
 
 impl PathSet {
@@ -43,6 +44,8 @@ impl PathSet {
         // PKI path is always under config path
         let pki_path = config_path.join("pki");
 
+        let tmp_path = data_path.join("tmp");
+
         // Ensure all directories exist
         ensure_dir_exists(&config_path)
             .with_context(|| format!("ensure config directory: {}", config_path.display()))?;
@@ -50,11 +53,14 @@ impl PathSet {
             .with_context(|| format!("ensure data directory: {}", data_path.display()))?;
         ensure_dir_exists(&pki_path)
             .with_context(|| format!("ensure pki directory: {}", pki_path.display()))?;
+        ensure_dir_exists(&tmp_path)
+            .with_context(|| format!("ensure tmp directory: {}", tmp_path.display()))?;
 
         Ok(Self {
             config_path,
             data_path,
             pki_path,
+            tmp_path,
         })
     }
 

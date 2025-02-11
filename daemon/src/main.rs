@@ -20,7 +20,7 @@ use server::DaemonServer;
 use sync::factory::SyncFactory;
 use sync::send::SyncSender;
 use tray::factory::TrayFactory;
-use tray::ui::build_and_run_tray_ui;
+use tray::ui::run_tray_ui;
 
 #[derive(Parser, Debug)]
 #[command(author, version = env!("CSYNC_VERSION"), about)]
@@ -58,8 +58,6 @@ async fn run(args: DaemonArgs) -> Result<()> {
     let lock_path = ps.data_path.join("daemon.lock");
     let lock = GlobalLock::acquire(lock_path)?;
 
-    let allow_save = daemon_cfg.tray.allow_save;
-
     let factory = SyncFactory::new(client_cfg.clone(), daemon_cfg.sync).await?;
 
     let mut sync_tx = SyncSender::default();
@@ -86,15 +84,10 @@ async fn run(args: DaemonArgs) -> Result<()> {
     });
 
     let tray_factory = TrayFactory::new(daemon_cfg.tray, client_cfg);
-    let (mut tray_daemon, menu_rx, write_tx) = tray_factory.build_tray_daemon(sync_tx).await?;
+    let api = tray_factory.build_tray_api_handler(ps, sync_tx);
+    let default_menu = api.build_menu().await?;
 
-    let default_menu = tray_daemon.build_menu().await?;
-
-    tokio::spawn(async move {
-        tray_daemon.run().await;
-    });
-
-    build_and_run_tray_ui(default_menu, menu_rx, write_tx, allow_save).await?;
+    run_tray_ui(api, default_menu)?;
     drop(lock);
 
     Ok(())

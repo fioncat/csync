@@ -7,9 +7,6 @@ pub struct TrayConfig {
     #[serde(default = "TrayConfig::default_enable")]
     pub enable: bool,
 
-    #[serde(default = "TrayConfig::default_allow_save")]
-    pub allow_save: bool,
-
     #[serde(default = "TrayConfig::default_truncate_text")]
     pub truncate_text: usize,
 
@@ -27,7 +24,6 @@ impl CommonConfig for TrayConfig {
     fn default() -> Self {
         Self {
             enable: Self::default_enable(),
-            allow_save: Self::default_allow_save(),
             truncate_text: Self::default_truncate_text(),
             text: Self::default_text(),
             image: Self::default_image(),
@@ -77,10 +73,6 @@ impl TrayConfig {
 
     fn default_truncate_text() -> usize {
         60
-    }
-
-    fn default_allow_save() -> bool {
-        true
     }
 
     fn default_text() -> ResourceConfig {
