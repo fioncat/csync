@@ -7,7 +7,7 @@ use log::{error, info};
 use tauri::menu::{
     AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder, Wry};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::mpsc;
@@ -50,6 +50,9 @@ pub fn run_tray_ui(
                     app.exit(0);
                     return;
                 }
+                "restart" => {
+                    app.restart();
+                }
                 "auto_refresh" => {
                     api.update_auto_refresh();
                     info!("Auto refresh set to {}", api.get_auto_refresh());
@@ -73,6 +76,15 @@ pub fn run_tray_ui(
             tokio::spawn(async move {
                 handle_result(handle_select(app, event.id.as_ref(), api).await);
             });
+        })
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                if let Err(e) = window.hide() {
+                    error!("Hide window error: {:#}", e);
+                }
+                api.prevent_close();
+            }
+            _ => {}
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -197,6 +209,9 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         ),
     )?;
     menu.append(&about)?;
+
+    let restart_item = MenuItem::with_id(&app, "restart", "Restart", true, None::<&str>)?;
+    menu.append(&restart_item)?;
 
     let quit_item = MenuItem::with_id(&app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
     menu.append(&quit_item)?;
@@ -367,13 +382,19 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
 }
 
 async fn show_settings(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
-    let window = WebviewWindowBuilder::new(
-        &app,
-        "settings",
-        WebviewUrl::App(PathBuf::from("settings.html")),
-    )
-    .resizable(false)
-    .build()?;
+    let window = match app.get_webview_window("settings") {
+        Some(window) => window,
+        None => WebviewWindowBuilder::new(
+            &app,
+            "settings",
+            WebviewUrl::App(PathBuf::from("settings.html")),
+        )
+        .title("Csync Settings")
+        .auto_resize()
+        .inner_size(500.0, 500.0)
+        // .resizable(false)
+        .build()?,
+    };
     window.show()?;
     Ok(())
 }
