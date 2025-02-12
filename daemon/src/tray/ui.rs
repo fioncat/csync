@@ -172,15 +172,17 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
 
     menu.append(&sep)?;
 
+    let more = Submenu::with_id(&app, "more", "More", true)?;
+
     let upload_item = Submenu::with_id(&app, "upload", "Upload", true)?;
     let upload_text = MenuItem::with_id(&app, "upload_text", "Upload Text", true, None::<&str>)?;
     let upload_image = MenuItem::with_id(&app, "upload_image", "Upload Image", true, None::<&str>)?;
     let upload_file = MenuItem::with_id(&app, "upload_file", "Upload File", true, None::<&str>)?;
     upload_item.append_items(&[&upload_text, &upload_image, &upload_file])?;
-    menu.append(&upload_item)?;
+    more.append(&upload_item)?;
 
     let refresh = MenuItem::with_id(&app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?;
-    menu.append(&refresh)?;
+    more.append(&refresh)?;
 
     let auto_refresh = CheckMenuItem::with_id(
         &app,
@@ -190,7 +192,7 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         api.get_auto_refresh(),
         None::<&str>,
     )?;
-    menu.append(&auto_refresh)?;
+    more.append(&auto_refresh)?;
 
     let action_item = Submenu::with_id(&app, "action", "Default Action", true)?;
 
@@ -199,15 +201,13 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         build_resource_action_submenu(&app, "image", "Image", api.get_image_action())?;
     let file_action = build_resource_action_submenu(&app, "file", "File", api.get_file_action())?;
     action_item.append_items(&[&text_action, &image_action, &file_action])?;
-    menu.append(&action_item)?;
-
-    menu.append(&sep)?;
+    more.append(&action_item)?;
 
     let config = Submenu::with_id(&app, "config", "Configuration", true)?;
     let client_config = MenuItem::with_id(&app, "client_config", "Client", true, None::<&str>)?;
     let daemon_config = MenuItem::with_id(&app, "daemon_config", "Daemon", true, None::<&str>)?;
     config.append_items(&[&client_config, &daemon_config])?;
-    menu.append(&config)?;
+    more.append(&config)?;
 
     let year = Local::now().year();
     let copyright = format!("Copyright (c) {year} {}", env!("CARGO_PKG_AUTHORS"));
@@ -224,11 +224,9 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
                 .build(),
         ),
     )?;
-    menu.append(&about)?;
+    more.append(&about)?;
 
-    let restart_item = MenuItem::with_id(&app, "restart", "Restart", true, None::<&str>)?;
-    menu.append(&restart_item)?;
-
+    menu.append(&more)?;
     let quit_item = MenuItem::with_id(&app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
     menu.append(&quit_item)?;
 
