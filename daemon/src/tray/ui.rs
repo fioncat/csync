@@ -192,7 +192,7 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
     )?;
     menu.append(&auto_refresh)?;
 
-    let action_item = Submenu::with_id(&app, "action", "Action", true)?;
+    let action_item = Submenu::with_id(&app, "action", "Default Action", true)?;
 
     let text_action = build_resource_action_submenu(&app, "text", "Text", api.get_text_action())?;
     let image_action =
