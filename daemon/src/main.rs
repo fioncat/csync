@@ -1,3 +1,4 @@
+mod config;
 mod now;
 mod server;
 mod sync;
@@ -7,32 +8,26 @@ use std::process;
 
 use anyhow::Result;
 use clap::Parser;
+use config::DaemonConfig;
 use csync_misc::client::config::ClientConfig;
 use csync_misc::config::CommonConfig;
+use csync_misc::display::display_json;
 use csync_misc::filelock::GlobalLock;
 use csync_misc::types::cmd::{ConfigArgs, LogArgs};
 use log::{error, info};
+use serde::Serialize;
 use server::DaemonServer;
-use sync::config::SyncConfig;
 use sync::factory::SyncFactory;
 use sync::send::SyncSender;
 use tray::factory::TrayFactory;
-use tray::ui::build_and_run_tray_ui;
+use tray::ui::run_tray_ui;
 
 #[derive(Parser, Debug)]
 #[command(author, version = env!("CSYNC_VERSION"), about)]
 struct DaemonArgs {
-    /// Do not start the system tray
-    #[arg(short, long)]
-    pub no_tray: bool,
-
-    /// Tray option, maximum number of history entries to display
-    #[arg(short, long, default_value = "20")]
-    pub limit: u64,
-
-    /// Tray option, text entries longer than this size will be truncated
-    #[arg(short, long, default_value = "80")]
-    pub truncate_size: usize,
+    /// Print daemon and client configuration data (JSON) and exit.
+    #[arg(long)]
+    pub print_config: bool,
 
     #[command(flatten)]
     pub config: ConfigArgs,
@@ -41,31 +36,56 @@ struct DaemonArgs {
     pub log: LogArgs,
 }
 
+#[derive(Debug, Serialize)]
+struct ConfigSet {
+    client: ClientConfig,
+    daemon: DaemonConfig,
+}
+
 async fn run(args: DaemonArgs) -> Result<()> {
     args.log.init()?;
     let ps = args.config.build_path_set()?;
+    let client_cfg: ClientConfig = ps.load_config("client", ClientConfig::default)?;
+    let daemon_cfg = ps.load_config("daemon", DaemonConfig::default)?;
+    if args.print_config {
+        display_json(&ConfigSet {
+            client: client_cfg,
+            daemon: daemon_cfg,
+        })?;
+        process::exit(0);
+    }
 
     let lock_path = ps.data_path.join("daemon.lock");
     let lock = GlobalLock::acquire(lock_path)?;
 
-    let client_cfg: ClientConfig = ps.load_config("client", ClientConfig::default)?;
-    let sync_cfg: SyncConfig = ps.load_config("sync", SyncConfig::default)?;
+    let factory = SyncFactory::new(client_cfg.clone(), daemon_cfg.sync).await?;
 
-    let factory = SyncFactory::new(client_cfg.clone(), sync_cfg).await?;
+    let (notify_tx, notify_rx) = if daemon_cfg.tray.enable {
+        let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(500);
+        (Some(notify_tx), Some(notify_rx))
+    } else {
+        (None, None)
+    };
 
     let mut sync_tx = SyncSender::default();
-    if let Some((sync, tx)) = factory.build_text_sync() {
+    if let Some((mut sync, tx)) = factory.build_text_sync() {
         sync_tx.text_tx = Some(tx);
+        if let Some(ref notify_tx) = notify_tx {
+            sync.set_notify(notify_tx.clone());
+        }
         sync.start();
     }
 
-    if let Some((sync, tx)) = factory.build_image_sync() {
+    if let Some((mut sync, tx)) = factory.build_image_sync() {
         sync_tx.image_tx = Some(tx);
+        if let Some(ref notify_tx) = notify_tx {
+            sync.set_notify(notify_tx.clone());
+        }
         sync.start();
     }
 
     let srv = DaemonServer::new(&ps, sync_tx.clone());
-    if args.no_tray {
+    if !daemon_cfg.tray.enable {
         return srv.serve().await;
     }
 
@@ -76,18 +96,11 @@ async fn run(args: DaemonArgs) -> Result<()> {
         }
     });
 
-    let tray_factory = TrayFactory::new(client_cfg);
-    let (mut tray_daemon, menu_rx, write_tx) = tray_factory
-        .build_tray_daemon(args.limit, args.truncate_size, sync_tx)
-        .await?;
+    let tray_factory = TrayFactory::new(daemon_cfg.tray);
+    let api = tray_factory.build_tray_api_handler(ps, sync_tx);
+    let default_menu = api.build_menu().await?;
 
-    let default_menu = tray_daemon.build_menu().await?;
-
-    tokio::spawn(async move {
-        tray_daemon.run().await;
-    });
-
-    build_and_run_tray_ui(default_menu, menu_rx, write_tx).await?;
+    run_tray_ui(api, default_menu, notify_rx.unwrap())?;
     drop(lock);
 
     Ok(())

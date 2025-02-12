@@ -6,7 +6,6 @@ use std::{fs, io};
 
 use anyhow::{bail, Context, Result};
 use chrono::Local;
-use log::info;
 use reqwest::{Certificate, Method, StatusCode, Url};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -177,12 +176,6 @@ impl Client {
                 Self::MAX_TIME_DELTA_WITH_SERVER
             )));
         }
-
-        let client_ip = resp.client_ip.unwrap_or(String::from("unknown"));
-        info!(
-            "Connected to server '{}', with client ip '{client_ip}'",
-            self.url
-        );
 
         Ok(())
     }
@@ -542,6 +535,22 @@ impl Client {
         let path = format!("api/{name}/{id}");
         self.do_request_data(Method::GET, &path, Payload::None, true)
             .await
+    }
+
+    pub async fn get_resource_option<T>(
+        &self,
+        name: &str,
+        id: String,
+    ) -> Result<Option<T>, RequestError>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let result = self.get_resource::<T>(name, id).await;
+        match result {
+            Ok(data) => Ok(Some(data)),
+            Err(RequestError::Server { code, .. }) if code == StatusCode::NOT_FOUND => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// List resources by name with query parameters

@@ -1,19 +1,10 @@
 use csync_misc::imghdr::is_data_image;
 use tokio::sync::mpsc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SyncSender {
     pub text_tx: Option<mpsc::Sender<Vec<u8>>>,
     pub image_tx: Option<mpsc::Sender<Vec<u8>>>,
-}
-
-impl Default for SyncSender {
-    fn default() -> Self {
-        Self {
-            text_tx: None,
-            image_tx: None,
-        }
-    }
 }
 
 impl SyncSender {

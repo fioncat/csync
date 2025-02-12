@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f8fafc;
+            --surface-color: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+            --input-bg: #f8fafc;
+            --error-color: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 24px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+
+        .tab {
+            display: flex;
+            gap: 4px;
+            padding: 16px 16px 0;
+            background-color: var(--surface-color);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .tab button {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab button:hover {
+            color: var(--primary-color);
+            background-color: #f1f5f9;
+        }
+
+        .tab button.active {
+            color: var(--primary-color);
+            background-color: #eff6ff;
+            font-weight: 600;
+        }
+
+        .tabcontent {
+            display: none;
+            padding: 24px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #475569;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--input-bg);
+            font-size: 14px;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary-color);
+        }
+
+        .required::after {
+            content: " *";
+            color: var(--error-color);
+        }
+
+        .buttons {
+            margin-top: 32px;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .save-btn {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .save-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .cancel-btn {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+
+        .cancel-btn:hover {
+            background-color: #e2e8f0;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .input-group input {
+            padding-right: 40px;
+        }
+
+        .input-group button {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 4px 8px;
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .setting-group {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .nested-settings {
+            margin-left: 24px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="loading-content">Loading...</div>
+    </div>
+
+    <div class="container">
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'Client')">Client</button>
+            <button class="tablinks" onclick="openTab(event, 'Sync')">Sync</button>
+            <button class="tablinks" onclick="openTab(event, 'Tray')">Tray</button>
+        </div>
+
+        <div id="Client" class="tabcontent" style="display: block;">
+            <div class="form-group">
+                <label class="required">Server</label>
+                <input type="text" id="server" placeholder="Enter server address" required>
+            </div>
+            <div class="form-group">
+                <label class="required">User</label>
+                <input type="text" id="user" placeholder="Enter username" required>
+            </div>
+            <div class="form-group">
+                <label class="required">Password</label>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Enter password" required>
+                    <button onclick="togglePassword('password')">Show</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Token Path</label>
+                <input type="text" id="tokenPath" placeholder="Enter token path">
+            </div>
+            <div class="form-group">
+                <label>Cert Path</label>
+                <input type="text" id="certPath" placeholder="Enter certificate path">
+            </div>
+            <div class="form-group">
+                <label>Secret Path</label>
+                <input type="text" id="secretPath" placeholder="Enter secret path">
+            </div>
+            <div class="form-group">
+                <label>Secret Key</label>
+                <div class="input-group">
+                    <input type="password" id="secretKey" placeholder="Enter secret key">
+                    <button onclick="togglePassword('secretKey')">Show</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="Sync" class="tabcontent">
+            <div class="form-group">
+                <label class="required">Server Interval (seconds)</label>
+                <input type="number" id="serverInterval" placeholder="Enter interval in seconds" required min="1">
+            </div>
+
+            <!-- Text 相关设置 -->
+            <div class="setting-group">
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="enableText" onchange="toggleSettings('text')">
+                    <label for="enableText">Enable Text</label>
+                </div>
+
+                <div id="textSettings" class="nested-settings" style="display: none;">
+                    <div class="form-group">
+                        <label class="required">Text Clipboard Interval (seconds)</label>
+                        <input type="number" id="textClipboardInterval" placeholder="Enter interval in seconds" min="1">
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="textServerReadonly">
+                        <label for="textServerReadonly">Text Server Readonly</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="textClipboardReadonly">
+                        <label for="textClipboardReadonly">Clipboard Readonly</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image 相关设置 -->
+            <div class="setting-group">
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="enableImage" onchange="toggleSettings('image')">
+                    <label for="enableImage">Enable Image</label>
+                </div>
+
+                <div id="imageSettings" class="nested-settings" style="display: none;">
+                    <div class="form-group">
+                        <label class="required">Image Clipboard Interval (seconds)</label>
+                        <input type="number" id="imageClipboardInterval" placeholder="Enter interval in seconds" min="1">
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="imageServerReadonly">
+                        <label for="imageServerReadonly">Image Server Readonly</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="imageClipboardReadonly">
+                        <label for="imageClipboardReadonly">Clipboard Readonly</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="Tray" class="tabcontent">
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="enableTray" onchange="toggleTraySettings()">
+                <label for="enableTray">Enable Tray</label>
+            </div>
+
+            <div id="traySettings" style="display: none;">
+                <div class="form-group">
+                    <label class="required">Truncate Text</label>
+                    <input type="number" id="truncateText" placeholder="Enter truncate length" min="1" required>
+                </div>
+
+                <!-- Text 相关设置 -->
+                <div class="setting-group">
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="trayEnableText" onchange="toggleTrayTextSettings()">
+                        <label for="trayEnableText">Enable Text</label>
+                    </div>
+
+                    <div id="trayTextSettings" class="nested-settings" style="display: none;">
+                        <div class="form-group">
+                            <label class="required">Text Limit</label>
+                            <input type="number" id="trayTextLimit" placeholder="Enter text limit" min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image 相关设置 -->
+                <div class="setting-group">
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="trayEnableImage" onchange="toggleTrayImageSettings()">
+                        <label for="trayEnableImage">Enable Image</label>
+                    </div>
+
+                    <div id="trayImageSettings" class="nested-settings" style="display: none;">
+                        <div class="form-group">
+                            <label class="required">Image Limit</label>
+                            <input type="number" id="trayImageLimit" placeholder="Enter image limit" min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File 相关设置 -->
+                <div class="setting-group">
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="trayEnableFile" onchange="toggleTrayFileSettings()">
+                        <label for="trayEnableFile">Enable File</label>
+                    </div>
+
+                    <div id="trayFileSettings" class="nested-settings" style="display: none;">
+                        <div class="form-group">
+                            <label class="required">File Limit</label>
+                            <input type="number" id="trayFileLimit" placeholder="Enter file limit" min="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="cancel-btn" onclick="cancel()">Cancel</button>
+            <button class="save-btn" onclick="save()">Save Changes</button>
+        </div>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const button = input.nextElementSibling;
+            if (input.type === "password") {
+                input.type = "text";
+                button.textContent = "Hide";
+            } else {
+                input.type = "password";
+                button.textContent = "Show";
+            }
+        }
+
+        function toggleSettings(type) {
+            const checkbox = document.getElementById(`enable${type.charAt(0).toUpperCase() + type.slice(1)}`);
+            const settings = document.getElementById(`${type}Settings`);
+            settings.style.display = checkbox.checked ? "block" : "none";
+
+            // 如果取消选中，清空相关输入
+            if (!checkbox.checked) {
+                document.getElementById(`${type}ClipboardInterval`).value = "";
+                document.getElementById(`${type}ServerReadonly`).checked = false;
+                document.getElementById(`${type}ClipboardReadonly`).checked = false;
+            }
+        }
+
+        function toggleTraySettings() {
+            const enabled = document.getElementById('enableTray').checked;
+            document.getElementById('traySettings').style.display = enabled ? 'block' : 'none';
+
+            // 如果禁用了 Tray，清空所有相关设置
+            if (!enabled) {
+                document.getElementById('truncateText').value = '';
+                document.getElementById('trayEnableText').checked = false;
+                document.getElementById('trayEnableImage').checked = false;
+                document.getElementById('trayEnableFile').checked = false;
+                toggleTrayTextSettings();
+                toggleTrayImageSettings();
+                toggleTrayFileSettings();
+            }
+        }
+
+        function toggleTrayTextSettings() {
+            const enabled = document.getElementById('trayEnableText').checked;
+            document.getElementById('trayTextSettings').style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                document.getElementById('trayTextLimit').value = '';
+            }
+        }
+
+        function toggleTrayImageSettings() {
+            const enabled = document.getElementById('trayEnableImage').checked;
+            document.getElementById('trayImageSettings').style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                document.getElementById('trayImageLimit').value = '';
+            }
+        }
+
+        function toggleTrayFileSettings() {
+            const enabled = document.getElementById('trayEnableFile').checked;
+            document.getElementById('trayFileSettings').style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                document.getElementById('trayFileLimit').value = '';
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        async function initializeForm() {
+            showLoading();
+            try {
+                const settings = await window.__TAURI__.invoke('get_settings');
+
+                // Client settings
+                document.getElementById('server').value = settings.client.server || '';
+                document.getElementById('user').value = settings.client.user || '';
+                document.getElementById('password').value = settings.client.password || '';
+                document.getElementById('tokenPath').value = settings.client.token_path || '';
+                document.getElementById('certPath').value = settings.client.cert_path || '';
+                document.getElementById('secretPath').value = settings.client.secret_path || '';
+                document.getElementById('secretKey').value = settings.client.secret_key || '';
+
+                // Sync settings
+                document.getElementById('serverInterval').value = settings.sync.server_interval || '';
+
+                // Text settings
+                document.getElementById('enableText').checked = settings.sync.enable_text || false;
+                if (settings.sync.enable_text) {
+                    document.getElementById('textSettings').style.display = 'block';
+                    document.getElementById('textClipboardInterval').value = settings.sync.text_clipboard_interval || '';
+                    document.getElementById('textServerReadonly').checked = settings.sync.text_server_readonly || false;
+                    document.getElementById('textClipboardReadonly').checked = settings.sync.text_clipboard_readonly || false;
+                }
+
+                // Image settings
+                document.getElementById('enableImage').checked = settings.sync.enable_image || false;
+                if (settings.sync.enable_image) {
+                    document.getElementById('imageSettings').style.display = 'block';
+                    document.getElementById('imageClipboardInterval').value = settings.sync.image_clipboard_interval || '';
+                    document.getElementById('imageServerReadonly').checked = settings.sync.image_server_readonly || false;
+                    document.getElementById('imageClipboardReadonly').checked = settings.sync.image_clipboard_readonly || false;
+                }
+
+                // Tray settings
+                document.getElementById('enableTray').checked = settings.tray?.enable || false;
+                if (settings.tray?.enable) {
+                    document.getElementById('traySettings').style.display = 'block';
+                    document.getElementById('truncateText').value = settings.tray.truncate_text || '';
+
+                    // Text settings
+                    document.getElementById('trayEnableText').checked = settings.tray.enable_text || false;
+                    if (settings.tray.enable_text) {
+                        document.getElementById('trayTextSettings').style.display = 'block';
+                        document.getElementById('trayTextLimit').value = settings.tray.text_limit || '';
+                    }
+
+                    // Image settings
+                    document.getElementById('trayEnableImage').checked = settings.tray.enable_image || false;
+                    if (settings.tray.enable_image) {
+                        document.getElementById('trayImageSettings').style.display = 'block';
+                        document.getElementById('trayImageLimit').value = settings.tray.image_limit || '';
+                    }
+
+                    // File settings
+                    document.getElementById('trayEnableFile').checked = settings.tray.enable_file || false;
+                    if (settings.tray.enable_file) {
+                        document.getElementById('trayFileSettings').style.display = 'block';
+                        document.getElementById('trayFileLimit').value = settings.tray.file_limit || '';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to initialize settings:', error);
+                alert('Failed to load settings: ' + error);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function save() {
+            showLoading();
+            try {
+                const settings = {
+                    client: {
+                        server: document.getElementById('server').value,
+                        user: document.getElementById('user').value,
+                        password: document.getElementById('password').value,
+                        token_path: document.getElementById('tokenPath').value,
+                        cert_path: document.getElementById('certPath').value,
+                        secret_path: document.getElementById('secretPath').value,
+                        secret_key: document.getElementById('secretKey').value,
+                    },
+                    sync: {
+                        server_interval: parseInt(document.getElementById('serverInterval').value),
+                        enable_text: document.getElementById('enableText').checked,
+                        enable_image: document.getElementById('enableImage').checked,
+
+                        // Text settings
+                        text_clipboard_interval: document.getElementById('enableText').checked ?
+                            parseInt(document.getElementById('textClipboardInterval').value) : null,
+                        text_server_readonly: document.getElementById('enableText').checked ?
+                            document.getElementById('textServerReadonly').checked : false,
+                        text_clipboard_readonly: document.getElementById('enableText').checked ?
+                            document.getElementById('textClipboardReadonly').checked : false,
+
+                        // Image settings
+                        image_clipboard_interval: document.getElementById('enableImage').checked ?
+                            parseInt(document.getElementById('imageClipboardInterval').value) : null,
+                        image_server_readonly: document.getElementById('enableImage').checked ?
+                            document.getElementById('imageServerReadonly').checked : false,
+                        image_clipboard_readonly: document.getElementById('enableImage').checked ?
+                            document.getElementById('imageClipboardReadonly').checked : false,
+                    },
+                    tray: {
+                        enable: document.getElementById('enableTray').checked,
+                        truncate_text: document.getElementById('enableTray').checked ?
+                            parseInt(document.getElementById('truncateText').value) : null,
+
+                        enable_text: document.getElementById('trayEnableText').checked,
+                        text_limit: document.getElementById('trayEnableText').checked ?
+                            parseInt(document.getElementById('trayTextLimit').value) : null,
+
+                        enable_image: document.getElementById('trayEnableImage').checked,
+                        image_limit: document.getElementById('trayEnableImage').checked ?
+                            parseInt(document.getElementById('trayImageLimit').value) : null,
+
+                        enable_file: document.getElementById('trayEnableFile').checked,
+                        file_limit: document.getElementById('trayEnableFile').checked ?
+                            parseInt(document.getElementById('trayFileLimit').value) : null,
+                    }
+                };
+
+                await window.__TAURI__.invoke('save_settings', { settings });
+                alert('Settings saved successfully!');
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+                alert('Failed to save settings: ' + error);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function cancel() {
+            window.__TAURI__.window.getCurrent().close();
+        }
+
+        // 页面加载完成后初始化表单
+        document.addEventListener('DOMContentLoaded', initializeForm);
+    </script>
+</body>
+</html>

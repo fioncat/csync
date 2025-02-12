@@ -1,6 +1,9 @@
 {
   "plugins": {},
   "identifier": "com.tauri-app.app",
+  "build": {
+    "frontendDist": "./web"
+  },
   "app": {
     "security": {
       "csp": null

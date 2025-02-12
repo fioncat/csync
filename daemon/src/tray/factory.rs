@@ -1,52 +1,31 @@
-use anyhow::Result;
-use csync_misc::client::config::ClientConfig;
-use csync_misc::client::factory::ClientFactory;
-use tokio::sync::mpsc;
+use csync_misc::config::PathSet;
 
 use crate::sync::send::SyncSender;
 
-use super::daemon::TrayDaemon;
+use super::api::ApiHandler;
+use super::config::TrayConfig;
 
 pub struct TrayFactory {
-    cfg: ClientConfig,
+    cfg: TrayConfig,
 }
 
 impl TrayFactory {
-    pub fn new(cfg: ClientConfig) -> Self {
+    pub fn new(cfg: TrayConfig) -> Self {
         Self { cfg }
     }
 
-    pub async fn build_tray_daemon(
-        self,
-        limit: u64,
-        truncate_size: usize,
-        sync_tx: SyncSender,
-    ) -> Result<(
-        TrayDaemon,
-        mpsc::Receiver<Vec<(String, String)>>,
-        mpsc::Sender<u64>,
-    )> {
-        let user = self.cfg.user.clone();
-        let password = self.cfg.password.clone();
-        let client_factory = ClientFactory::new(self.cfg);
-        let client = client_factory.build_client().await?;
-
-        let (menu_tx, menu_rx) = mpsc::channel(500);
-        let (write_tx, write_rx) = mpsc::channel(500);
-
-        let tray_daemon = TrayDaemon {
-            latest_id: None,
-            client,
-            sync_tx,
-            token: None,
-            user,
-            password,
-            menu_tx,
-            write_rx,
-            limit,
-            truncate_size,
-        };
-
-        Ok((tray_daemon, menu_rx, write_tx))
+    pub fn build_tray_api_handler(self, ps: PathSet, sync_tx: SyncSender) -> ApiHandler {
+        let mut api = ApiHandler::new(ps, sync_tx);
+        if self.cfg.text.enable {
+            api.with_text(self.cfg.text.limit);
+        }
+        if self.cfg.image.enable {
+            api.with_image(self.cfg.image.limit);
+        }
+        if self.cfg.file.enable {
+            api.with_file(self.cfg.file.limit);
+        }
+        api.set_truncate_size(self.cfg.truncate_text);
+        api
     }
 }
