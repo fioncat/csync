@@ -20,6 +20,20 @@ pub struct TrayConfig {
     pub file: ResourceConfig,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
+pub enum TrayAction {
+    #[serde(rename = "copy")]
+    Copy,
+    #[serde(rename = "open")]
+    Open,
+    #[serde(rename = "save")]
+    Save,
+    #[serde(rename = "delete")]
+    Delete,
+    #[serde(rename = "none")]
+    None,
+}
+
 impl CommonConfig for TrayConfig {
     fn default() -> Self {
         Self {
@@ -61,6 +75,9 @@ pub struct ResourceConfig {
     pub enable: bool,
 
     pub limit: u64,
+
+    #[serde(default = "ResourceConfig::default_action")]
+    pub default_action: TrayAction,
 }
 
 impl TrayConfig {
@@ -79,6 +96,7 @@ impl TrayConfig {
         ResourceConfig {
             enable: true,
             limit: 20,
+            default_action: ResourceConfig::default_action(),
         }
     }
 
@@ -86,6 +104,7 @@ impl TrayConfig {
         ResourceConfig {
             enable: true,
             limit: 5,
+            default_action: ResourceConfig::default_action(),
         }
     }
 
@@ -93,6 +112,7 @@ impl TrayConfig {
         ResourceConfig {
             enable: true,
             limit: 5,
+            default_action: ResourceConfig::default_action(),
         }
     }
 }
@@ -103,6 +123,10 @@ impl ResourceConfig {
 
     fn default_enable() -> bool {
         true
+    }
+
+    fn default_action() -> TrayAction {
+        TrayAction::None
     }
 
     fn validate(&self) -> Result<()> {
