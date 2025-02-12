@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::{fs, io};
 
 use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
@@ -7,7 +8,7 @@ use log::{error, info};
 use tauri::menu::{
     AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
+use tauri::{AppHandle, WindowEvent, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::mpsc;
@@ -51,6 +52,7 @@ pub fn run_tray_ui(
                     return;
                 }
                 "restart" => {
+                    info!("Restart application");
                     app.restart();
                 }
                 "auto_refresh" => {
@@ -59,15 +61,20 @@ pub fn run_tray_ui(
                     return;
                 }
                 "refresh" => {
+                    info!("Refresh menu");
                     tokio::spawn(async move {
                         handle_result(refresh_menu(app, api).await);
                     });
                     return;
                 }
-                "settings" => {
-                    tokio::spawn(async move {
-                        handle_result(show_settings(app, api).await);
-                    });
+                "client_config" => {
+                    info!("Open client configuration");
+                    handle_result(open_config(app, api, "client"));
+                    return;
+                }
+                "daemon_config" => {
+                    info!("Open daemon configuration");
+                    handle_result(open_config(app, api, "daemon"));
                     return;
                 }
                 _ => {}
@@ -189,8 +196,11 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
 
     menu.append(&sep)?;
 
-    let settings = MenuItem::with_id(&app, "settings", "Settings", true, None::<&str>)?;
-    menu.append(&settings)?;
+    let config = Submenu::with_id(&app, "config", "Configuration", true)?;
+    let client_config = MenuItem::with_id(&app, "client_config", "Client", true, None::<&str>)?;
+    let daemon_config = MenuItem::with_id(&app, "daemon_config", "Daemon", true, None::<&str>)?;
+    config.append_items(&[&client_config, &daemon_config])?;
+    menu.append(&config)?;
 
     let year = Local::now().year();
     let copyright = format!("Copyright (c) {year} {}", env!("CARGO_PKG_AUTHORS"));
@@ -380,21 +390,30 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
     Ok(())
 }
 
-async fn show_settings(app: AppHandle, _api: Arc<ApiHandler>) -> Result<()> {
-    let window = match app.get_webview_window("settings") {
-        Some(window) => window,
-        None => WebviewWindowBuilder::new(
-            &app,
-            "settings",
-            WebviewUrl::App(PathBuf::from("settings.html")),
-        )
-        .title("Csync Settings")
-        .auto_resize()
-        .inner_size(500.0, 500.0)
-        // .resizable(false)
-        .build()?,
-    };
-    window.show()?;
+fn open_config(app: AppHandle, api: Arc<ApiHandler>, kind: &str) -> Result<()> {
+    let path = api.get_config_path(kind);
+
+    match fs::metadata(&path) {
+        Ok(meta) => {
+            if meta.is_dir() {
+                bail!("config path is a directory: {}", path.display());
+            }
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            let default_data = match kind {
+                "client" => include_bytes!("../../../config/client.toml").to_vec(),
+                "daemon" => include_bytes!("../../../config/daemon.toml").to_vec(),
+                _ => unreachable!(),
+            };
+            fs::write(&path, default_data)?;
+        }
+        Err(e) => return Err(e).context("read config file"),
+    }
+
+    let opener = app.opener();
+    let path = format!("{}", path.display());
+    opener.open_path(&path, None::<&str>)?;
+
     Ok(())
 }
 
