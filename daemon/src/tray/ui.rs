@@ -7,7 +7,7 @@ use log::{error, info};
 use tauri::menu::{
     AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::mpsc;
@@ -77,14 +77,13 @@ pub fn run_tray_ui(
                 handle_result(handle_select(app, event.id.as_ref(), api).await);
             });
         })
-        .on_window_event(|window, event| match event {
-            WindowEvent::CloseRequested { api, .. } => {
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
                 if let Err(e) = window.hide() {
                     error!("Hide window error: {:#}", e);
                 }
                 api.prevent_close();
             }
-            _ => {}
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -381,7 +380,7 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
     Ok(())
 }
 
-async fn show_settings(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
+async fn show_settings(app: AppHandle, _api: Arc<ApiHandler>) -> Result<()> {
     let window = match app.get_webview_window("settings") {
         Some(window) => window,
         None => WebviewWindowBuilder::new(

@@ -96,7 +96,7 @@ async fn run(args: DaemonArgs) -> Result<()> {
         }
     });
 
-    let tray_factory = TrayFactory::new(daemon_cfg.tray, client_cfg);
+    let tray_factory = TrayFactory::new(daemon_cfg.tray);
     let api = tray_factory.build_tray_api_handler(ps, sync_tx);
     let default_menu = api.build_menu().await?;
 
