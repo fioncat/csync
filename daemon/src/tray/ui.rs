@@ -14,6 +14,7 @@ use tauri_plugin_opener::OpenerExt;
 use tokio::sync::mpsc;
 
 use super::api::{ApiHandler, MenuData};
+use super::config::TrayAction;
 
 #[allow(deprecated)]
 pub fn run_tray_ui(
@@ -138,8 +139,7 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         let key = format!("text_{}", text.id);
         let value = text.text;
 
-        let submenu = build_resource_submenu(&app, key, value, "Text")?;
-        menu.append(&submenu)?;
+        append_resource_menu(&app, &menu, key, value, "Text", api.get_text_action())?;
     }
 
     menu.append(&sep)?;
@@ -153,8 +153,7 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         let key = format!("image_{}", image.id);
         let value = format!("<{}>", image.size);
 
-        let submenu = build_resource_submenu(&app, key, value, "Image")?;
-        menu.append(&submenu)?;
+        append_resource_menu(&app, &menu, key, value, "Image", api.get_image_action())?;
     }
 
     menu.append(&sep)?;
@@ -168,8 +167,7 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         let key = format!("file_{}", file.id);
         let value = format!("<{}, {}>", file.name, file.size);
 
-        let submenu = build_resource_submenu(&app, key, value, "File")?;
-        menu.append(&submenu)?;
+        append_resource_menu(&app, &menu, key, value, "File", api.get_file_action())?;
     }
 
     menu.append(&sep)?;
@@ -193,6 +191,15 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         None::<&str>,
     )?;
     menu.append(&auto_refresh)?;
+
+    let action_item = Submenu::with_id(&app, "action", "Default Action", true)?;
+
+    let text_action = build_resource_action_submenu(&app, "text", "Text", api.get_text_action())?;
+    let image_action =
+        build_resource_action_submenu(&app, "image", "Image", api.get_image_action())?;
+    let file_action = build_resource_action_submenu(&app, "file", "File", api.get_file_action())?;
+    action_item.append_items(&[&text_action, &image_action, &file_action])?;
+    menu.append(&action_item)?;
 
     menu.append(&sep)?;
 
@@ -231,6 +238,43 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
     Ok(())
 }
 
+fn append_resource_menu(
+    app: &AppHandle,
+    menu: &Menu<Wry>,
+    key: String,
+    value: String,
+    name: &str,
+    action: TrayAction,
+) -> Result<()> {
+    match action {
+        TrayAction::Copy => {
+            let key = format!("{key}_copy");
+            let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
+            menu.append(&item)?;
+        }
+        TrayAction::Open => {
+            let key = format!("{key}_open");
+            let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
+            menu.append(&item)?;
+        }
+        TrayAction::Save => {
+            let key = format!("{key}_save");
+            let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
+            menu.append(&item)?;
+        }
+        TrayAction::Delete => {
+            let key = format!("{key}_delete");
+            let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
+            menu.append(&item)?;
+        }
+        TrayAction::None => {
+            let submenu = build_resource_submenu(app, key.clone(), value, name)?;
+            menu.append(&submenu)?;
+        }
+    };
+    Ok(())
+}
+
 fn build_resource_submenu(
     app: &AppHandle,
     key: String,
@@ -261,8 +305,93 @@ fn build_resource_submenu(
     Ok(submenu)
 }
 
+fn build_resource_action_submenu(
+    app: &AppHandle,
+    key: &str,
+    name: &str,
+    action: TrayAction,
+) -> Result<Submenu<Wry>> {
+    let submenu = Submenu::with_id(app, format!("action_{key}"), name, true)?;
+
+    let copy_item = CheckMenuItem::with_id(
+        app,
+        format!("action_{key}_copy"),
+        "Copy",
+        true,
+        matches!(action, TrayAction::Copy),
+        None::<&str>,
+    )?;
+    let open_item = CheckMenuItem::with_id(
+        app,
+        format!("action_{key}_open"),
+        "Open",
+        true,
+        matches!(action, TrayAction::Open),
+        None::<&str>,
+    )?;
+    let save_item = CheckMenuItem::with_id(
+        app,
+        format!("action_{key}_save"),
+        "Save",
+        true,
+        matches!(action, TrayAction::Save),
+        None::<&str>,
+    )?;
+    let delete_item = CheckMenuItem::with_id(
+        app,
+        format!("action_{key}_delete"),
+        "Delete",
+        true,
+        matches!(action, TrayAction::Delete),
+        None::<&str>,
+    )?;
+
+    submenu.append_items(&[&copy_item, &open_item, &save_item, &delete_item])?;
+
+    Ok(submenu)
+}
+
 async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result<()> {
     info!("Selected menu item: {id}");
+
+    if id.starts_with("action_") {
+        let id = id.strip_prefix("action_").unwrap();
+        let fields = id.split('_').collect::<Vec<_>>();
+        if fields.len() != 2 {
+            bail!("invalid menu action id: {id}");
+        }
+        let kind = fields[0];
+        let action = match fields[1] {
+            "copy" => TrayAction::Copy,
+            "open" => TrayAction::Open,
+            "save" => TrayAction::Save,
+            "delete" => TrayAction::Delete,
+            _ => unreachable!(),
+        };
+
+        let current_action = match kind {
+            "text" => api.get_text_action(),
+            "image" => api.get_image_action(),
+            "file" => api.get_file_action(),
+            _ => unreachable!(),
+        };
+
+        let update_action = if current_action == action {
+            TrayAction::None
+        } else {
+            action
+        };
+
+        match kind {
+            "text" => api.set_text_action(update_action),
+            "image" => api.set_image_action(update_action),
+            "file" => api.set_file_action(update_action),
+            _ => unreachable!(),
+        }
+
+        refresh_menu(app, api).await?;
+        return Ok(());
+    }
 
     if id.starts_with("upload_") {
         let kind = id.strip_prefix("upload_").unwrap();
@@ -302,6 +431,7 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
             };
         }
 
+        refresh_menu(app, api).await?;
         return Ok(());
     }
 

@@ -19,6 +19,8 @@ use log::info;
 
 use crate::sync::send::SyncSender;
 
+use super::config::TrayAction;
+
 pub struct ApiHandler {
     ps: PathSet,
 
@@ -27,12 +29,15 @@ pub struct ApiHandler {
     enable_text: bool,
     text_limit: u64,
     truncate_size: usize,
+    text_action: Mutex<RefCell<TrayAction>>,
 
     enable_image: bool,
     image_limit: u64,
+    image_action: Mutex<RefCell<TrayAction>>,
 
     enable_file: bool,
     file_limit: u64,
+    file_action: Mutex<RefCell<TrayAction>>,
 
     auto_refresh: Mutex<RefCell<bool>>,
 }
@@ -67,27 +72,33 @@ impl ApiHandler {
             enable_text: false,
             text_limit: 0,
             truncate_size: 0,
+            text_action: Mutex::new(RefCell::new(TrayAction::None)),
             enable_image: false,
             image_limit: 0,
+            image_action: Mutex::new(RefCell::new(TrayAction::None)),
             enable_file: false,
             file_limit: 0,
+            file_action: Mutex::new(RefCell::new(TrayAction::None)),
             auto_refresh: Mutex::new(RefCell::new(true)),
         }
     }
 
-    pub fn with_text(&mut self, limit: u64) {
+    pub fn with_text(&mut self, limit: u64, action: TrayAction) {
         self.enable_text = true;
         self.text_limit = limit;
+        self.text_action.lock().unwrap().replace(action);
     }
 
-    pub fn with_image(&mut self, limit: u64) {
+    pub fn with_image(&mut self, limit: u64, action: TrayAction) {
         self.enable_image = true;
         self.image_limit = limit;
+        self.image_action.lock().unwrap().replace(action);
     }
 
-    pub fn with_file(&mut self, limit: u64) {
+    pub fn with_file(&mut self, limit: u64, action: TrayAction) {
         self.enable_file = true;
         self.file_limit = limit;
+        self.file_action.lock().unwrap().replace(action);
     }
 
     pub fn set_truncate_size(&mut self, size: usize) {
@@ -323,6 +334,33 @@ impl ApiHandler {
 
     pub fn get_config_path(&self, name: &str) -> PathBuf {
         self.ps.config_path.join(format!("{name}.toml"))
+    }
+
+    pub fn set_text_action(&self, action: TrayAction) {
+        info!("Setting text action: {:?}", action);
+        self.text_action.lock().unwrap().replace(action);
+    }
+
+    pub fn set_image_action(&self, action: TrayAction) {
+        info!("Setting image action: {:?}", action);
+        self.image_action.lock().unwrap().replace(action);
+    }
+
+    pub fn set_file_action(&self, action: TrayAction) {
+        info!("Setting file action: {:?}", action);
+        self.file_action.lock().unwrap().replace(action);
+    }
+
+    pub fn get_text_action(&self) -> TrayAction {
+        *self.text_action.lock().unwrap().borrow()
+    }
+
+    pub fn get_image_action(&self) -> TrayAction {
+        *self.image_action.lock().unwrap().borrow()
+    }
+
+    pub fn get_file_action(&self) -> TrayAction {
+        *self.file_action.lock().unwrap().borrow()
     }
 
     async fn build_client(&self) -> Result<Client> {

@@ -17,13 +17,13 @@ impl TrayFactory {
     pub fn build_tray_api_handler(self, ps: PathSet, sync_tx: SyncSender) -> ApiHandler {
         let mut api = ApiHandler::new(ps, sync_tx);
         if self.cfg.text.enable {
-            api.with_text(self.cfg.text.limit);
+            api.with_text(self.cfg.text.limit, self.cfg.text.default_action);
         }
         if self.cfg.image.enable {
-            api.with_image(self.cfg.image.limit);
+            api.with_image(self.cfg.image.limit, self.cfg.image.default_action);
         }
         if self.cfg.file.enable {
-            api.with_file(self.cfg.file.limit);
+            api.with_file(self.cfg.file.limit, self.cfg.file.default_action);
         }
         api.set_truncate_size(self.cfg.truncate_text);
         api
