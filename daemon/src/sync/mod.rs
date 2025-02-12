@@ -70,6 +70,8 @@ pub struct Synchronizer<M: ResourceManager> {
     cb_readonly: bool,
 
     first_server: bool,
+
+    notify: Option<mpsc::Sender<()>>,
 }
 
 impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
@@ -77,6 +79,10 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
         tokio::spawn(async move {
             self.main_loop().await;
         });
+    }
+
+    pub fn set_notify(&mut self, notify: mpsc::Sender<()>) {
+        self.notify = Some(notify);
     }
 
     async fn main_loop(&mut self) {
@@ -128,6 +134,9 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
                 self.name
             );
 
+            if let Some(ref notify) = self.notify {
+                notify.send(()).await.unwrap();
+            }
             self.server_hash = Some(hash);
             return Ok(());
         }
@@ -158,6 +167,9 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
         }
 
         info!("[{}] Server data has changed, start pulling", self.name);
+        if let Some(ref notify) = self.notify {
+            notify.send(()).await.unwrap();
+        }
         let start = Instant::now();
         let rsc = self.mgr.read_server(&self.client).await?;
         if rsc.is_none() {

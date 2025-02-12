@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 pub mod api;
 pub mod config;
 pub mod factory;

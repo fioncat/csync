@@ -60,14 +60,27 @@ async fn run(args: DaemonArgs) -> Result<()> {
 
     let factory = SyncFactory::new(client_cfg.clone(), daemon_cfg.sync).await?;
 
+    let (notify_tx, notify_rx) = if daemon_cfg.tray.enable {
+        let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(500);
+        (Some(notify_tx), Some(notify_rx))
+    } else {
+        (None, None)
+    };
+
     let mut sync_tx = SyncSender::default();
-    if let Some((sync, tx)) = factory.build_text_sync() {
+    if let Some((mut sync, tx)) = factory.build_text_sync() {
         sync_tx.text_tx = Some(tx);
+        if let Some(ref notify_tx) = notify_tx {
+            sync.set_notify(notify_tx.clone());
+        }
         sync.start();
     }
 
-    if let Some((sync, tx)) = factory.build_image_sync() {
+    if let Some((mut sync, tx)) = factory.build_image_sync() {
         sync_tx.image_tx = Some(tx);
+        if let Some(ref notify_tx) = notify_tx {
+            sync.set_notify(notify_tx.clone());
+        }
         sync.start();
     }
 
@@ -87,7 +100,7 @@ async fn run(args: DaemonArgs) -> Result<()> {
     let api = tray_factory.build_tray_api_handler(ps, sync_tx);
     let default_menu = api.build_menu().await?;
 
-    run_tray_ui(api, default_menu)?;
+    run_tray_ui(api, default_menu, notify_rx.unwrap())?;
     drop(lock);
 
     Ok(())

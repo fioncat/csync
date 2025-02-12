@@ -83,6 +83,7 @@ impl SyncFactory {
             server_readonly: self.cfg.image.server_readonly,
             cb_readonly: self.cfg.image.cb_readonly,
             first_server: true,
+            notify: None,
         };
         (sync, cb_tx)
     }

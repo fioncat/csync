@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
@@ -11,11 +10,16 @@ use tauri::menu::{
 use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
+use tokio::sync::mpsc;
 
 use super::api::{ApiHandler, MenuData};
 
 #[allow(deprecated)]
-pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
+pub fn run_tray_ui(
+    api: ApiHandler,
+    default_menu: MenuData,
+    notify_rx: mpsc::Receiver<()>,
+) -> Result<()> {
     let api = Arc::new(api);
 
     let refresh_api = api.clone();
@@ -32,7 +36,7 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
             let api = refresh_api.clone();
             let app = app.handle().clone();
             tokio::spawn(async move {
-                auto_refresh_menu(app, api).await;
+                auto_refresh_menu(app, api, notify_rx).await;
             });
             Ok(())
         })
@@ -77,36 +81,22 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
         .context("run system tray event loop")
 }
 
-async fn auto_refresh_menu(app: AppHandle, api: Arc<ApiHandler>) {
-    let mut intv = tokio::time::interval(Duration::from_secs(1));
-    let mut current = String::new();
+async fn auto_refresh_menu(
+    app: AppHandle,
+    api: Arc<ApiHandler>,
+    mut notify_rx: mpsc::Receiver<()>,
+) {
     loop {
-        intv.tick().await;
+        notify_rx.recv().await.unwrap();
 
         if !api.get_auto_refresh() {
             continue;
         }
 
-        let latest = match api.get_latest().await {
-            Ok(latest) => latest,
-            Err(err) => {
-                error!("Failed to get latest: {err:#}");
-                continue;
-            }
-        };
-
-        if current.is_empty() {
-            current = latest;
+        info!("Update notification received, refreshing menu");
+        if let Err(err) = refresh_menu(app.clone(), api.clone()).await {
+            error!("Auo refresh menu error: {err:#}");
             continue;
-        }
-
-        if current != latest {
-            current = latest;
-            info!("Latest changed to '{current}', refreshing menu");
-            if let Err(err) = refresh_menu(app.clone(), api.clone()).await {
-                error!("Auo refresh menu error: {err:#}");
-                continue;
-            }
         }
     }
 }
