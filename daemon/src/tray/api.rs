@@ -321,6 +321,10 @@ impl ApiHandler {
         self.ps.tmp_path.join(name)
     }
 
+    pub fn get_config_path(&self, name: &str) -> PathBuf {
+        self.ps.config_path.join(format!("{name}.toml"))
+    }
+
     async fn build_client(&self) -> Result<Client> {
         let client_factory = ClientFactory::load(&self.ps)?;
         client_factory.build_client_with_token_file().await
