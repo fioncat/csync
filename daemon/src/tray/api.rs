@@ -124,7 +124,6 @@ impl ApiHandler {
             for text in texts {
                 let id = text.id;
                 let text = truncate_text(text.content.unwrap(), self.truncate_size);
-                let text = text.replace("\n", "\\n");
                 data.texts.push(MenuTextItem { id, text });
             }
         }

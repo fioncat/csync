@@ -27,3 +27,4 @@ shellexpand = "3.1"
 thiserror = "2.0"
 tokio = { version = "1.43", features = ["full"] }
 toml = "0.8"
+unicode-width = "0.2"
