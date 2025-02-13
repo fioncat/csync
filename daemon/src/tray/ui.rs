@@ -108,29 +108,35 @@ async fn auto_refresh_menu(app: AppHandle, api: Arc<ApiHandler>) {
         }
 
         let cur_rev = match api.get_revision().await {
-            Ok(rev) => Some(rev),
+            Ok(rev) => rev,
             Err(e) => {
                 error!("Get server revision error: {e:#}");
                 continue;
             }
         };
 
-        if rev == cur_rev {
-            continue;
+        match rev {
+            Some(rev) if rev == cur_rev => continue,
+            None => {
+                rev = Some(cur_rev);
+                continue;
+            }
+            _ => {}
         }
-        rev = cur_rev;
 
-        info!("Server revision updated to {:?}, refreshing menu", rev);
+        info!("Server revision updated to {cur_rev}, refreshing menu");
         if let Err(err) = refresh_menu(app.clone(), api.clone()).await {
             error!("Auo refresh menu error: {err:#}");
             continue;
         }
+        rev = Some(cur_rev);
     }
 }
 
 async fn refresh_menu(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
     let data = api.build_menu().await?;
     setup_menu(app, data, api)?;
+    info!("Tray menu refreshed");
     Ok(())
 }
 
@@ -436,8 +442,6 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
                 _ => unreachable!(),
             };
         }
-
-        refresh_menu(app, api).await?;
         return Ok(());
     }
 
@@ -521,8 +525,6 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
         },
         _ => unreachable!(),
     }
-
-    refresh_menu(app, api).await?;
     Ok(())
 }
 

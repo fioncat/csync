@@ -218,7 +218,7 @@ impl Client {
     }
 
     /// Get the server's current revision
-    pub async fn revision(&self) -> Result<String, RequestError> {
+    pub async fn revision(&self) -> Result<u64, RequestError> {
         let resp: RevisionResponse = self
             .do_request_data(Method::GET, "api/revision", Payload::None, true)
             .await?;

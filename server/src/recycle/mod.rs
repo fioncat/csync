@@ -10,7 +10,7 @@ use csync_misc::time::get_time_before_hours;
 use log::{error, info};
 use tokio::time::{interval_at, Instant};
 
-use crate::revision::Revision;
+use crate::revision::{Revisier, Revision};
 
 use super::db::cache::Cache;
 use super::db::{Database, Transaction};

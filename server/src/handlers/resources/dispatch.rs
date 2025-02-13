@@ -8,7 +8,7 @@ use log::error;
 use crate::authn::AuthnUserInfo;
 use crate::db::Database;
 use crate::response::Response;
-use crate::revision::Revision;
+use crate::revision::{Revisier, Revision};
 
 use super::files::FilesHandler;
 use super::images::ImagesHandler;

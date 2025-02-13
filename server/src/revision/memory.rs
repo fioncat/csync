@@ -3,28 +3,29 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
-use super::RevisionProvider;
+use super::Revisier;
 
 pub struct MemoryRevision {
-    rev: Mutex<RefCell<String>>,
+    rev: Mutex<RefCell<u64>>,
 }
 
 impl MemoryRevision {
     pub fn new() -> Self {
         Self {
-            rev: Mutex::new(RefCell::new(String::new())),
+            rev: Mutex::new(RefCell::new(0)),
         }
     }
 }
 
-impl RevisionProvider for MemoryRevision {
-    fn save(&self, rev: String) -> Result<()> {
-        self.rev.lock().unwrap().replace(rev);
+impl Revisier for MemoryRevision {
+    fn update(&self) -> Result<()> {
+        let rev = self.rev.lock().unwrap();
+        let new_rev = *rev.borrow() + 1;
+        rev.replace(new_rev);
         Ok(())
     }
 
-    fn load(&self) -> Result<String> {
-        let rev = self.rev.lock().unwrap().borrow().clone();
-        Ok(rev)
+    fn load(&self) -> Result<u64> {
+        Ok(*self.rev.lock().unwrap().borrow())
     }
 }

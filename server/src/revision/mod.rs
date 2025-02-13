@@ -5,26 +5,24 @@ mod memory;
 
 use anyhow::Result;
 use memory::MemoryRevision;
-use uuid::Uuid;
 
 pub enum Revision {
     Memory(MemoryRevision),
 }
 
-trait RevisionProvider {
-    fn save(&self, rev: String) -> Result<()>;
-    fn load(&self) -> Result<String>;
+pub trait Revisier {
+    fn update(&self) -> Result<()>;
+    fn load(&self) -> Result<u64>;
 }
 
-impl Revision {
-    pub fn update(&self) -> Result<()> {
-        let uuid = Uuid::new_v4().to_string().replace("-", "");
+impl Revisier for Revision {
+    fn update(&self) -> Result<()> {
         match self {
-            Self::Memory(r) => r.save(uuid),
+            Self::Memory(r) => r.update(),
         }
     }
 
-    pub fn load(&self) -> Result<String> {
+    fn load(&self) -> Result<u64> {
         match self {
             Self::Memory(r) => r.load(),
         }

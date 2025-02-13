@@ -311,7 +311,7 @@ impl ApiHandler {
         Ok(())
     }
 
-    pub async fn get_revision(&self) -> Result<String> {
+    pub async fn get_revision(&self) -> Result<u64> {
         let client = self.get_client().await;
         let rev = client.revision().await?;
         Ok(rev)

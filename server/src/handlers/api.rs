@@ -14,7 +14,7 @@ use crate::authz::chain::ChainAuthorizer;
 use crate::authz::{Authorizer, AuthzRequest, AuthzResponse};
 use crate::db::Database;
 use crate::response::{self, Response};
-use crate::revision::Revision;
+use crate::revision::{Revisier, Revision};
 
 use super::resources::dispatch::Dispatcher;
 use super::Handler;
