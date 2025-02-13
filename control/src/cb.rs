@@ -5,10 +5,10 @@ use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use clap::Args;
 use csync_misc::clipboard::Clipboard;
+use csync_misc::config::ConfigArgs;
 use csync_misc::daemon::client::DaemonClient;
 use csync_misc::humanize::human_bytes;
 use csync_misc::imghdr::is_data_image;
-use csync_misc::types::cmd::ConfigArgs;
 
 use super::RunCommand;
 

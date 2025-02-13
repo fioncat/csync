@@ -10,11 +10,11 @@ bytes = "1.9"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 console = "0.15"
-fern = { version = "0.7", features = ["colored"] }
 file-lock = "2.1"
 humantime = "2.1"
 libc = "0.2"
 log = "0.4"
+log4rs = "1.3"
 openssl = "0.10"
 pad = "0.1"
 pbkdf2 = "0.12"

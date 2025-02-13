@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use csync_misc::config::{expandenv, CommonConfig, PathSet};
+use csync_misc::logs::config::LogConfig;
 use csync_misc::secret::config::SecretConfig;
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +51,9 @@ pub struct ServerConfig {
 
     #[serde(default = "RevisionConfig::default")]
     pub revision: RevisionConfig,
+
+    #[serde(default = "LogConfig::default")]
+    pub log: LogConfig,
 }
 
 impl CommonConfig for ServerConfig {
@@ -68,6 +72,7 @@ impl CommonConfig for ServerConfig {
             secret: SecretConfig::default(),
             recycle: RecycleConfig::default(),
             revision: RevisionConfig::default(),
+            log: LogConfig::default(),
         }
     }
 
@@ -106,6 +111,9 @@ impl CommonConfig for ServerConfig {
         self.authz.complete(ps).context("authz")?;
         self.db.complete(ps).context("db")?;
         self.secret.complete(ps).context("secret")?;
+        self.recycle.complete(ps).context("recycle")?;
+        self.revision.complete(ps).context("revision")?;
+        self.log.complete(ps).context("log")?;
 
         Ok(())
     }

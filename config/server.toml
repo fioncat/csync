@@ -51,3 +51,12 @@ keep_hours = 2
 enable = true
 max = 10
 keep_hours = 5
+
+[revision]
+name = "memory"
+
+[log]
+name = "stdout"
+level = "info"
+file_archive = 5
+file_max_size_mib = 10
