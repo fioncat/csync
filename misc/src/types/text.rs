@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use unicode_width::UnicodeWidthChar;
 
 use crate::display::TerminalDisplay;
 use crate::humanize::human_bytes;
@@ -62,18 +63,22 @@ impl TerminalDisplay for Text {
     }
 }
 
-pub fn truncate_text(text: String, max_len: usize) -> String {
-    let mut text = text.replace("\n", "\\n");
-    if text.chars().count() <= max_len {
-        return text;
+pub fn truncate_text(text: String, width: usize) -> String {
+    let text = text.replace("\n", "\\n");
+
+    let mut current_width = 0;
+    let mut result = String::new();
+
+    for c in text.chars() {
+        let char_width = c.width_cjk().unwrap_or(1);
+
+        if current_width + char_width > width {
+            break;
+        }
+
+        result.push(c);
+        current_width += char_width;
     }
 
-    text.truncate(
-        text.char_indices()
-            .nth(max_len)
-            .map(|(i, _)| i)
-            .unwrap_or(text.len()),
-    );
-    text.push_str("...");
-    text
+    result
 }
