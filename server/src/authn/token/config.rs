@@ -38,8 +38,11 @@ impl CommonConfig for TokenConfig {
     }
 
     fn complete(&mut self, ps: &PathSet) -> Result<()> {
-        if self.expiry == 0 {
-            bail!("token expiry should not be 0");
+        if self.expiry < Self::MINIMAL_EXPIRY {
+            bail!(
+                "token expiry should be at least {} seconds",
+                Self::MINIMAL_EXPIRY
+            );
         }
 
         self.public_key_path = expandenv("public_key_path", &self.public_key_path)?;
@@ -66,6 +69,8 @@ impl CommonConfig for TokenConfig {
 }
 
 impl TokenConfig {
+    const MINIMAL_EXPIRY: u64 = 60;
+
     pub fn default_key_path() -> String {
         String::new()
     }

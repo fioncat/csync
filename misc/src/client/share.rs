@@ -92,13 +92,15 @@ impl ShareManager {
         let new_client = self.client.derive(resp.token);
         self.client = Arc::new(new_client);
 
+        let expire = resp.expire_in - Client::MAX_TIME_DELTA_WITH_SERVER;
         let now = Local::now().timestamp() as usize;
-        if now >= resp.expire_in {
+        if now >= expire {
             bail!("Token is immediately expired after refresh, the server or client time may be incorrect");
         }
-        let delta = resp.expire_in - now;
+        let delta = expire - now;
         self.refresh_intv
             .reset_after(Duration::from_secs(delta as u64));
+        info!("The next time to refresh the token is after {delta}s");
 
         Ok(())
     }
