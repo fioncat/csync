@@ -75,6 +75,11 @@ pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
                     handle_result(open_config(app, api, "daemon"));
                     return;
                 }
+                "logs" => {
+                    info!("Open logs file");
+                    handle_result(open_logs(app, api));
+                    return;
+                }
                 _ => {}
             }
 
@@ -222,6 +227,9 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
     let daemon_config = MenuItem::with_id(&app, "daemon_config", "Daemon", true, None::<&str>)?;
     config.append_items(&[&client_config, &daemon_config])?;
     more.append(&config)?;
+
+    let logs = MenuItem::with_id(&app, "logs", "Logs", true, None::<&str>)?;
+    more.append(&logs)?;
 
     let year = Local::now().year();
     let copyright = format!("Copyright (c) {year} {}", env!("CARGO_PKG_AUTHORS"));
@@ -552,6 +560,14 @@ fn open_config(app: AppHandle, api: Arc<ApiHandler>, kind: &str) -> Result<()> {
     let path = format!("{}", path.display());
     opener.open_path(&path, None::<&str>)?;
 
+    Ok(())
+}
+
+fn open_logs(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
+    let path = api.get_logs_path();
+    let opener = app.opener();
+    let path = format!("{}", path.display());
+    opener.open_path(&path, None::<&str>)?;
     Ok(())
 }
 

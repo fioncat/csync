@@ -88,8 +88,12 @@ impl PathSet {
         Ok(cfg)
     }
 
+    pub fn get_logs_path(&self) -> PathBuf {
+        self.data_path.join("logs")
+    }
+
     pub fn init_logger(&self, name: &str, cfg: &LogConfig) -> Result<()> {
-        let dir = self.data_path.join("logs");
+        let dir = self.get_logs_path();
         ensure_dir_exists(&dir)
             .with_context(|| format!("ensure logs directory: {}", dir.display()))?;
 
