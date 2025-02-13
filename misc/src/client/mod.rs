@@ -1,5 +1,6 @@
 pub mod config;
 pub mod factory;
+pub mod share;
 pub mod token;
 
 use std::{fs, io};
@@ -774,6 +775,15 @@ impl Client {
                 ))
             }
             Payload::None => unreachable!(),
+        }
+    }
+
+    pub fn derive(&self, token: String) -> Self {
+        Self {
+            url: self.url.clone(),
+            client: self.client.clone(),
+            token: Some(token),
+            secret: self.secret.clone(),
         }
     }
 }

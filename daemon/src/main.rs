@@ -1,5 +1,4 @@
 mod config;
-mod now;
 mod server;
 mod sync;
 mod tray;
@@ -10,6 +9,7 @@ use anyhow::Result;
 use clap::Parser;
 use config::DaemonConfig;
 use csync_misc::client::config::ClientConfig;
+use csync_misc::client::share::build_share_client;
 use csync_misc::config::CommonConfig;
 use csync_misc::display::display_json;
 use csync_misc::filelock::GlobalLock;
@@ -58,29 +58,18 @@ async fn run(args: DaemonArgs) -> Result<()> {
     let lock_path = ps.data_path.join("daemon.lock");
     let lock = GlobalLock::acquire(lock_path)?;
 
-    let factory = SyncFactory::new(client_cfg.clone(), daemon_cfg.sync).await?;
+    let share_client = build_share_client(client_cfg).await?;
 
-    let (notify_tx, notify_rx) = if daemon_cfg.tray.enable {
-        let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(500);
-        (Some(notify_tx), Some(notify_rx))
-    } else {
-        (None, None)
-    };
+    let factory = SyncFactory::new(daemon_cfg.sync).await?;
 
     let mut sync_tx = SyncSender::default();
-    if let Some((mut sync, tx)) = factory.build_text_sync() {
+    if let Some((sync, tx)) = factory.build_text_sync(share_client.clone()) {
         sync_tx.text_tx = Some(tx);
-        if let Some(ref notify_tx) = notify_tx {
-            sync.set_notify(notify_tx.clone());
-        }
         sync.start();
     }
 
-    if let Some((mut sync, tx)) = factory.build_image_sync() {
+    if let Some((sync, tx)) = factory.build_image_sync(share_client.clone()) {
         sync_tx.image_tx = Some(tx);
-        if let Some(ref notify_tx) = notify_tx {
-            sync.set_notify(notify_tx.clone());
-        }
         sync.start();
     }
 
@@ -97,10 +86,10 @@ async fn run(args: DaemonArgs) -> Result<()> {
     });
 
     let tray_factory = TrayFactory::new(daemon_cfg.tray);
-    let api = tray_factory.build_tray_api_handler(ps, sync_tx);
+    let api = tray_factory.build_tray_api_handler(share_client, ps, sync_tx);
     let default_menu = api.build_menu().await?;
 
-    run_tray_ui(api, default_menu, notify_rx.unwrap())?;
+    run_tray_ui(api, default_menu)?;
     drop(lock);
 
     Ok(())

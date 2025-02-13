@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use csync_misc::client::share::ShareClient;
 use csync_misc::config::PathSet;
 
 use crate::sync::send::SyncSender;
@@ -14,8 +17,13 @@ impl TrayFactory {
         Self { cfg }
     }
 
-    pub fn build_tray_api_handler(self, ps: PathSet, sync_tx: SyncSender) -> ApiHandler {
-        let mut api = ApiHandler::new(ps, sync_tx);
+    pub fn build_tray_api_handler(
+        self,
+        share_client: Arc<ShareClient>,
+        ps: PathSet,
+        sync_tx: SyncSender,
+    ) -> ApiHandler {
+        let mut api = ApiHandler::new(share_client, ps, sync_tx);
         if self.cfg.text.enable {
             api.with_text(self.cfg.text.limit, self.cfg.text.default_action);
         }

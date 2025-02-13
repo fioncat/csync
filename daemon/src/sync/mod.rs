@@ -4,20 +4,19 @@ pub mod image;
 pub mod send;
 pub mod text;
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use csync_misc::client::share::ShareClient;
 use csync_misc::client::Client;
 use csync_misc::clipboard::Clipboard;
 use csync_misc::humanize::human_bytes;
-use csync_misc::types::token::TokenResponse;
 use log::{info, warn};
 use sha2::{Digest, Sha256};
 use tokio::select;
 use tokio::sync::mpsc;
-
-use crate::now::current_timestamp;
 
 #[async_trait]
 pub trait ResourceManager {
@@ -54,10 +53,7 @@ pub struct Synchronizer<M: ResourceManager> {
     server_hash: Option<String>,
     cb_hash: Option<String>,
 
-    client: Client,
-    token: Option<TokenResponse>,
-    user: String,
-    password: String,
+    share_client: Arc<ShareClient>,
 
     cb: Clipboard,
 
@@ -70,8 +66,6 @@ pub struct Synchronizer<M: ResourceManager> {
     cb_readonly: bool,
 
     first_server: bool,
-
-    notify: Option<mpsc::Sender<()>>,
 }
 
 impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
@@ -79,10 +73,6 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
         tokio::spawn(async move {
             self.main_loop().await;
         });
-    }
-
-    pub fn set_notify(&mut self, notify: mpsc::Sender<()>) {
-        self.notify = Some(notify);
     }
 
     async fn main_loop(&mut self) {
@@ -113,7 +103,7 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
     }
 
     async fn handle_server(&mut self) -> Result<()> {
-        self.refresh_token().await?;
+        let client = self.share_client.client().await;
 
         if let SyncFlag::Push = self.flag {
             let rsc = self.bucket.take().unwrap();
@@ -125,7 +115,7 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
 
             let Resource { data, hash } = rsc;
             self.mgr
-                .write_server(&self.client, data)
+                .write_server(client.as_ref(), data)
                 .await
                 .context("write data to server")?;
             let elapsed = start.elapsed().as_secs_f64();
@@ -134,9 +124,6 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
                 self.name
             );
 
-            if let Some(ref notify) = self.notify {
-                notify.send(()).await.unwrap();
-            }
             self.server_hash = Some(hash);
             return Ok(());
         }
@@ -145,7 +132,7 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
             return Ok(());
         }
 
-        let latest_hash = self.mgr.read_server_hash(&self.client).await?;
+        let latest_hash = self.mgr.read_server_hash(client.as_ref()).await?;
         let mut changed = false;
         if latest_hash.is_none() {
             self.server_hash = None;
@@ -167,11 +154,8 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
         }
 
         info!("[{}] Server data has changed, start pulling", self.name);
-        if let Some(ref notify) = self.notify {
-            notify.send(()).await.unwrap();
-        }
         let start = Instant::now();
-        let rsc = self.mgr.read_server(&self.client).await?;
+        let rsc = self.mgr.read_server(client.as_ref()).await?;
         if rsc.is_none() {
             warn!("[{}] Server didn't return any data, skip", self.name);
             return Ok(());
@@ -250,33 +234,6 @@ impl<M: ResourceManager + Send + 'static> Synchronizer<M> {
         self.mgr.write_cb(&self.cb, data).await?;
         self.cb_hash = Some(hash);
 
-        Ok(())
-    }
-
-    async fn refresh_token(&mut self) -> Result<()> {
-        let mut need_flush = true;
-        if let Some(ref token) = self.token {
-            let now = current_timestamp() as usize;
-            if now < token.expire_in {
-                need_flush = false;
-            }
-        }
-
-        if !need_flush {
-            return Ok(());
-        }
-
-        info!("[{}] Refreshing client token", self.name);
-        let mut resp = self.client.login(&self.user, &self.password).await?;
-        self.client.set_token(resp.token.clone());
-
-        resp.expire_in -= Client::MAX_TIME_DELTA_WITH_SERVER;
-        info!(
-            "[{}] Token refreshed, expire_in: {}",
-            self.name, resp.expire_in
-        );
-
-        self.token = Some(resp);
         Ok(())
     }
 }
