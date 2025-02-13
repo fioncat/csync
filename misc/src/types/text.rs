@@ -80,5 +80,9 @@ pub fn truncate_text(text: String, width: usize) -> String {
         current_width += char_width;
     }
 
+    if result.len() < text.len() {
+        result.push_str("...");
+    }
+
     result
 }
