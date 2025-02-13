@@ -13,7 +13,7 @@ use super::authn::AuthnUserInfo;
 
 /// Trait that defines the authorization interface
 ///
-/// Implementors of this trait can authorize requests based on custom logic.
+/// Implementers of this trait can authorize requests based on custom logic.
 /// The trait is thread-safe and can be shared across threads.
 pub trait Authorizer: Send + Sync {
     /// Authorizes a request and returns an AuthzResponse

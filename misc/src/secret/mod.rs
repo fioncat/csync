@@ -8,7 +8,7 @@ use base64::Engine;
 
 /// Trait for data encryption and decryption operations.
 ///
-/// Implementors of this trait provide methods to encrypt and decrypt data,
+/// Implementers of this trait provide methods to encrypt and decrypt data,
 /// ensuring secure data transmission over networks.
 pub trait Secret {
     /// Encrypts the provided data.

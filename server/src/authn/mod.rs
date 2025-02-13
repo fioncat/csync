@@ -14,7 +14,7 @@ use csync_misc::types::request::Query;
 
 /// Trait for request authenticators.
 ///
-/// Implementors of this trait can authenticate HTTP requests and optionally
+/// Implementers of this trait can authenticate HTTP requests and optionally
 /// chain with other authenticators to provide multiple authentication methods.
 pub trait Authenticator: Send + Sync {
     /// Attempts to authenticate a request.
