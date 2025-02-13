@@ -3,6 +3,7 @@ use std::sync::Arc;
 use actix_web::HttpRequest;
 use csync_misc::secret::aes::AesSecret;
 use csync_misc::types::request::{Payload, Query, ResourceRequest};
+use csync_misc::types::revision::RevisionResponse;
 use csync_misc::types::user::{CaniResponse, WhoamiResponse};
 use log::error;
 
@@ -13,6 +14,7 @@ use crate::authz::chain::ChainAuthorizer;
 use crate::authz::{Authorizer, AuthzRequest, AuthzResponse};
 use crate::db::Database;
 use crate::response::{self, Response};
+use crate::revision::Revision;
 
 use super::resources::dispatch::Dispatcher;
 use super::Handler;
@@ -22,6 +24,8 @@ pub struct ApiHandler {
     authz: ChainAuthorizer,
 
     dispatcher: Dispatcher,
+
+    revision: Arc<Revision>,
 }
 
 impl ApiHandler {
@@ -30,11 +34,13 @@ impl ApiHandler {
         authz: ChainAuthorizer,
         db: Arc<Database>,
         secret: Arc<Option<AesSecret>>,
+        revision: Arc<Revision>,
     ) -> Self {
         Self {
             authn,
             authz,
-            dispatcher: Dispatcher::new(db, secret),
+            dispatcher: Dispatcher::new(db, secret, revision.clone()),
+            revision,
         }
     }
 
@@ -88,6 +94,18 @@ impl ApiHandler {
 
         Response::json(CaniResponse { allow })
     }
+
+    fn handle_revision(&self) -> Response {
+        let rev = match self.revision.load() {
+            Ok(rev) => rev,
+            Err(e) => {
+                error!("Load revision failed: {e:#}");
+                return Response::error(response::REVISION_ERROR);
+            }
+        };
+
+        Response::json(RevisionResponse { revision: rev })
+    }
 }
 
 impl Handler for ApiHandler {
@@ -129,6 +147,16 @@ impl Handler for ApiHandler {
                 return Response::method_not_allowed();
             }
             return self.handle_whoami(user_info);
+        }
+
+        if resource == "revision" {
+            if id.is_some() {
+                return Response::bad_request("revision does not take an id");
+            }
+            if method != "get" {
+                return Response::method_not_allowed();
+            }
+            return self.handle_revision();
         }
 
         let content_type = req

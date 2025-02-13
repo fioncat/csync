@@ -20,6 +20,7 @@ use crate::types::healthz::HealthzResponse;
 use crate::types::image::{Image, ENABLE_SECRET};
 use crate::types::request::{Payload, Query};
 use crate::types::response::{CommonResponse, ResourceResponse, MIME_JSON, MIME_OCTET_STREAM};
+use crate::types::revision::RevisionResponse;
 use crate::types::text::Text;
 use crate::types::token::TokenResponse;
 use crate::types::user::{CaniResponse, Role, User, WhoamiResponse};
@@ -213,6 +214,14 @@ impl Client {
             )
             .await?;
         Ok(resp.allow)
+    }
+
+    /// Get the server's current revision
+    pub async fn revision(&self) -> Result<String, RequestError> {
+        let resp: RevisionResponse = self
+            .do_request_data(Method::GET, "api/revision", Payload::None, true)
+            .await?;
+        Ok(resp.revision)
     }
 
     /// Create or update a user

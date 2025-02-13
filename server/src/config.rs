@@ -3,6 +3,8 @@ use csync_misc::config::{expandenv, CommonConfig, PathSet};
 use csync_misc::secret::config::SecretConfig;
 use serde::{Deserialize, Serialize};
 
+use crate::revision::config::RevisionConfig;
+
 use super::authn::config::AuthnConfig;
 use super::authz::config::AuthzConfig;
 use super::db::config::DbConfig;
@@ -45,6 +47,9 @@ pub struct ServerConfig {
 
     #[serde(default = "RecycleConfig::default")]
     pub recycle: RecycleConfig,
+
+    #[serde(default = "RevisionConfig::default")]
+    pub revision: RevisionConfig,
 }
 
 impl CommonConfig for ServerConfig {
@@ -62,6 +67,7 @@ impl CommonConfig for ServerConfig {
             db: DbConfig::default(),
             secret: SecretConfig::default(),
             recycle: RecycleConfig::default(),
+            revision: RevisionConfig::default(),
         }
     }
 

@@ -9,6 +9,7 @@ pub const DATABASE_ERROR: &str = "Database error";
 pub const TOKEN_ERROR: &str = "Generate token failed";
 pub const SECRET_ERROR: &str = "Generate or validate secret failed";
 pub const JSON_ERROR: &str = "Encode or decode JSON failed";
+pub const REVISION_ERROR: &str = "Revision error";
 
 /// A wrapper struct for HTTP responses that provides convenient methods
 /// for creating common response types
@@ -65,6 +66,10 @@ impl Response {
         Self {
             http_response: resp.body(data),
         }
+    }
+
+    pub fn is_ok(&self) -> bool {
+        self.http_response.status() == StatusCode::OK
     }
 
     fn ok_response() -> Self {
