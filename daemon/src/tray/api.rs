@@ -317,14 +317,8 @@ impl ApiHandler {
         Ok(rev)
     }
 
-    #[allow(clippy::needless_bool)]
     pub fn get_auto_refresh(&self) -> bool {
-        let auto_refresh = self.auto_refresh.lock().unwrap();
-        if *auto_refresh.borrow() {
-            true
-        } else {
-            false
-        }
+        *self.auto_refresh.lock().unwrap().borrow()
     }
 
     pub fn update_auto_refresh(&self) {
