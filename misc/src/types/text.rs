@@ -64,7 +64,7 @@ impl TerminalDisplay for Text {
 }
 
 pub fn truncate_text(text: String, width: usize) -> String {
-    let text = text.replace("\n", "\\n");
+    let text = text.replace("\n", " ");
 
     let mut current_width = 0;
     let mut result = String::new();
