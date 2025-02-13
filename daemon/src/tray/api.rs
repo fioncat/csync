@@ -3,10 +3,10 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Result};
-use csync_misc::client::factory::ClientFactory;
+use csync_misc::client::share::ShareClient;
 use csync_misc::client::Client;
 use csync_misc::config::PathSet;
 use csync_misc::humanize::human_bytes;
@@ -22,6 +22,7 @@ use crate::sync::send::SyncSender;
 use super::config::TrayAction;
 
 pub struct ApiHandler {
+    share_client: Arc<ShareClient>,
     ps: PathSet,
 
     sync_tx: SyncSender,
@@ -65,8 +66,9 @@ pub struct MenuFileItem {
 }
 
 impl ApiHandler {
-    pub fn new(ps: PathSet, sync_tx: SyncSender) -> Self {
+    pub fn new(share_client: Arc<ShareClient>, ps: PathSet, sync_tx: SyncSender) -> Self {
         Self {
+            share_client,
             ps,
             sync_tx,
             enable_text: false,
@@ -106,7 +108,7 @@ impl ApiHandler {
     }
 
     pub async fn build_menu(&self) -> Result<MenuData> {
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
 
         let mut data = MenuData {
             texts: vec![],
@@ -165,7 +167,7 @@ impl ApiHandler {
 
         let text = fs::read_to_string(path)?;
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         client.put_text(text).await?;
 
         Ok(())
@@ -174,7 +176,7 @@ impl ApiHandler {
     pub async fn save_text(&self, id: u64, path: &Path) -> Result<()> {
         info!("Saving text {id} to file: {}", path.display());
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         let text = client.read_text(id).await?;
 
         fs::write(path, text.content.unwrap())?;
@@ -185,7 +187,7 @@ impl ApiHandler {
     pub async fn copy_text(&self, id: u64) -> Result<()> {
         info!("Copying text {id} to clipboard");
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         let text = client.read_text(id).await?;
 
         self.send_sync(text.content.unwrap().into_bytes()).await;
@@ -196,7 +198,7 @@ impl ApiHandler {
     pub async fn delete_text(&self, id: u64) -> Result<()> {
         info!("Deleting text {id}");
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         client
             .delete_resource("texts", id.to_string().as_str())
             .await?;
@@ -212,7 +214,7 @@ impl ApiHandler {
             bail!("file is not an image");
         }
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         client.put_image(data).await?;
 
         Ok(())
@@ -221,7 +223,7 @@ impl ApiHandler {
     pub async fn save_image(&self, id: u64, path: &Path) -> Result<()> {
         info!("Saving image {id} to file: {}", path.display());
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         let data = client.read_image(id).await?;
         fs::write(path, data)?;
 
@@ -231,7 +233,7 @@ impl ApiHandler {
     pub async fn copy_image(&self, id: u64) -> Result<()> {
         info!("Copying image {id} to clipboard");
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         let data = client.read_image(id).await?;
 
         self.send_sync(data).await;
@@ -242,7 +244,7 @@ impl ApiHandler {
     pub async fn delete_image(&self, id: u64) -> Result<()> {
         info!("Deleting image {id}");
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         client
             .delete_resource("images", id.to_string().as_str())
             .await?;
@@ -265,7 +267,7 @@ impl ApiHandler {
         };
         let mode = meta.mode() as u32;
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
 
         client.put_file(name, mode, data).await?;
         Ok(())
@@ -274,7 +276,7 @@ impl ApiHandler {
     pub async fn save_file(&self, id: u64, path: &Path) -> Result<PathBuf> {
         info!("Saving file {id} to file: {}", path.display());
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         let (info, data) = client.read_file(id).await?;
 
         let path = path.join(info.name);
@@ -291,7 +293,7 @@ impl ApiHandler {
     pub async fn copy_file(&self, id: u64) -> Result<()> {
         info!("Copying file {id} to clipboard");
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         let (_, data) = client.read_file(id).await?;
         self.send_sync(data).await;
 
@@ -301,7 +303,7 @@ impl ApiHandler {
     pub async fn delete_file(&self, id: u64) -> Result<()> {
         info!("Deleting file {id}");
 
-        let client = self.build_client().await?;
+        let client = self.get_client().await;
         client
             .delete_resource("files", id.to_string().as_str())
             .await?;
@@ -309,14 +311,14 @@ impl ApiHandler {
         Ok(())
     }
 
-    #[allow(clippy::needless_bool)]
+    pub async fn get_revision(&self) -> Result<u64> {
+        let client = self.get_client().await;
+        let rev = client.revision().await?;
+        Ok(rev)
+    }
+
     pub fn get_auto_refresh(&self) -> bool {
-        let auto_refresh = self.auto_refresh.lock().unwrap();
-        if *auto_refresh.borrow() {
-            true
-        } else {
-            false
-        }
+        *self.auto_refresh.lock().unwrap().borrow()
     }
 
     pub fn update_auto_refresh(&self) {
@@ -362,9 +364,8 @@ impl ApiHandler {
         *self.file_action.lock().unwrap().borrow()
     }
 
-    async fn build_client(&self) -> Result<Client> {
-        let client_factory = ClientFactory::load(&self.ps)?;
-        client_factory.build_client_with_token_file().await
+    async fn get_client(&self) -> Arc<Client> {
+        self.share_client.client().await
     }
 
     async fn send_sync(&self, data: Vec<u8>) {

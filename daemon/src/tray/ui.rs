@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{fs, io};
 
 use anyhow::{bail, Context, Result};
@@ -11,17 +12,13 @@ use tauri::menu::{
 use tauri::{AppHandle, WindowEvent, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
-use tokio::sync::mpsc;
+use tokio::time::interval;
 
 use super::api::{ApiHandler, MenuData};
 use super::config::TrayAction;
 
 #[allow(deprecated)]
-pub fn run_tray_ui(
-    api: ApiHandler,
-    default_menu: MenuData,
-    notify_rx: mpsc::Receiver<()>,
-) -> Result<()> {
+pub fn run_tray_ui(api: ApiHandler, default_menu: MenuData) -> Result<()> {
     let api = Arc::new(api);
 
     let refresh_api = api.clone();
@@ -38,7 +35,7 @@ pub fn run_tray_ui(
             let api = refresh_api.clone();
             let app = app.handle().clone();
             tokio::spawn(async move {
-                auto_refresh_menu(app, api, notify_rx).await;
+                auto_refresh_menu(app, api).await;
             });
             Ok(())
         })
@@ -100,29 +97,46 @@ pub fn run_tray_ui(
         .context("run system tray event loop")
 }
 
-async fn auto_refresh_menu(
-    app: AppHandle,
-    api: Arc<ApiHandler>,
-    mut notify_rx: mpsc::Receiver<()>,
-) {
+async fn auto_refresh_menu(app: AppHandle, api: Arc<ApiHandler>) {
+    let mut intv = interval(Duration::from_secs(1));
+    let mut rev = None;
     loop {
-        notify_rx.recv().await.unwrap();
+        intv.tick().await;
 
         if !api.get_auto_refresh() {
             continue;
         }
 
-        info!("Update notification received, refreshing menu");
+        let cur_rev = match api.get_revision().await {
+            Ok(rev) => rev,
+            Err(e) => {
+                error!("Get server revision error: {e:#}");
+                continue;
+            }
+        };
+
+        match rev {
+            Some(rev) if rev == cur_rev => continue,
+            None => {
+                rev = Some(cur_rev);
+                continue;
+            }
+            _ => {}
+        }
+
+        info!("Server revision updated to {cur_rev}, refreshing menu");
         if let Err(err) = refresh_menu(app.clone(), api.clone()).await {
             error!("Auo refresh menu error: {err:#}");
             continue;
         }
+        rev = Some(cur_rev);
     }
 }
 
 async fn refresh_menu(app: AppHandle, api: Arc<ApiHandler>) -> Result<()> {
     let data = api.build_menu().await?;
     setup_menu(app, data, api)?;
+    info!("Tray menu refreshed");
     Ok(())
 }
 
@@ -428,8 +442,6 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
                 _ => unreachable!(),
             };
         }
-
-        refresh_menu(app, api).await?;
         return Ok(());
     }
 
@@ -513,8 +525,6 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
         },
         _ => unreachable!(),
     }
-
-    refresh_menu(app, api).await?;
     Ok(())
 }
 

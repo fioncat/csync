@@ -10,12 +10,15 @@ use csync_misc::time::get_time_before_hours;
 use log::{error, info};
 use tokio::time::{interval_at, Instant};
 
+use crate::revision::{Revisier, Revision};
+
 use super::db::cache::Cache;
 use super::db::{Database, Transaction};
 
 pub struct Recycler {
     db: Arc<Database>,
     resources: Vec<RecycleResource>,
+    revision: Arc<Revision>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -29,8 +32,16 @@ impl Recycler {
     const HANDLE_INTERVAL_SECS: u64 = 60 * 60; // 1 hour
     const DELETE_LIMIT: usize = 20;
 
-    pub fn new(db: Arc<Database>, resources: Vec<RecycleResource>) -> Self {
-        Self { db, resources }
+    pub fn new(
+        db: Arc<Database>,
+        resources: Vec<RecycleResource>,
+        revision: Arc<Revision>,
+    ) -> Self {
+        Self {
+            db,
+            resources,
+            revision,
+        }
     }
 
     pub fn start(self) {
@@ -52,9 +63,10 @@ impl Recycler {
             for rsc in self.resources.iter() {
                 let name = rsc.get_name();
                 let result = self.db.with_transaction(|tx, cache| {
-                    let need_clear_cache = self.handle(name, tx, *rsc)?;
-                    if need_clear_cache {
+                    let updated = self.handle(name, tx, *rsc)?;
+                    if updated {
                         rsc.clear_cache(cache)?;
+                        self.revision.update()?;
                     }
                     Ok(())
                 });
@@ -68,7 +80,7 @@ impl Recycler {
     fn handle(&self, name: &str, tx: &dyn Transaction, rsc: RecycleResource) -> Result<bool> {
         let cfg = rsc.get_config();
 
-        let mut need_clear_cache = false;
+        let mut updated = false;
         let count = rsc.count(tx)?;
         if count > cfg.max as usize {
             let mut delta = count - cfg.max as usize;
@@ -82,17 +94,17 @@ impl Recycler {
             let to_delete = rsc.get_oldest_ids(tx, delta)?;
             let deleted = rsc.delete(tx, &to_delete)?;
             info!("Recycled {deleted} '{name}' items");
-            need_clear_cache = true;
+            updated = true;
         }
 
         let outdated_time = get_time_before_hours(cfg.keep_hours);
         let deleted = rsc.delete_before_time(tx, outdated_time)?;
         if deleted > 0 {
             info!("Deleted {deleted} outdated '{name}' items created before {outdated_time}");
-            need_clear_cache = true;
+            updated = true;
         }
 
-        Ok(need_clear_cache)
+        Ok(updated)
     }
 }
 

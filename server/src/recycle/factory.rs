@@ -5,6 +5,7 @@ use log::warn;
 
 use crate::db::Database;
 use crate::recycle::RecycleResource;
+use crate::revision::Revision;
 
 use super::config::RecycleConfig;
 use super::Recycler;
@@ -20,6 +21,7 @@ impl RecyclerFactory {
         &self,
         cfg: &RecycleConfig,
         db: Arc<Database>,
+        revision: Arc<Revision>,
     ) -> Result<Option<Recycler>> {
         let mut resources = Vec::new();
 
@@ -48,7 +50,7 @@ impl RecyclerFactory {
             return Ok(None);
         }
 
-        let recycler = Recycler::new(db, resources);
+        let recycler = Recycler::new(db, resources, revision);
         Ok(Some(recycler))
     }
 }

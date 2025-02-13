@@ -1,5 +1,6 @@
 pub mod config;
 pub mod factory;
+pub mod share;
 pub mod token;
 
 use std::{fs, io};
@@ -20,6 +21,7 @@ use crate::types::healthz::HealthzResponse;
 use crate::types::image::{Image, ENABLE_SECRET};
 use crate::types::request::{Payload, Query};
 use crate::types::response::{CommonResponse, ResourceResponse, MIME_JSON, MIME_OCTET_STREAM};
+use crate::types::revision::RevisionResponse;
 use crate::types::text::Text;
 use crate::types::token::TokenResponse;
 use crate::types::user::{CaniResponse, Role, User, WhoamiResponse};
@@ -213,6 +215,14 @@ impl Client {
             )
             .await?;
         Ok(resp.allow)
+    }
+
+    /// Get the server's current revision
+    pub async fn revision(&self) -> Result<u64, RequestError> {
+        let resp: RevisionResponse = self
+            .do_request_data(Method::GET, "api/revision", Payload::None, true)
+            .await?;
+        Ok(resp.revision)
     }
 
     /// Create or update a user
@@ -765,6 +775,15 @@ impl Client {
                 ))
             }
             Payload::None => unreachable!(),
+        }
+    }
+
+    pub fn derive(&self, token: String) -> Self {
+        Self {
+            url: self.url.clone(),
+            client: self.client.clone(),
+            token: Some(token),
+            secret: self.secret.clone(),
         }
     }
 }

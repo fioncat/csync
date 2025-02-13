@@ -1,7 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
-use csync_misc::client::config::ClientConfig;
-use csync_misc::client::factory::ClientFactory;
-use csync_misc::client::Client;
+use csync_misc::client::share::ShareClient;
 use csync_misc::clipboard::Clipboard;
 use tokio::sync::mpsc;
 
@@ -11,58 +11,45 @@ use super::text::TextSyncManager;
 use super::{ResourceManager, SyncFlag, Synchronizer};
 
 pub struct SyncFactory {
-    client: Client,
     cfg: SyncConfig,
 
     cb: Clipboard,
-
-    user: String,
-    password: String,
 }
 
 impl SyncFactory {
-    pub async fn new(client_cfg: ClientConfig, sync_cfg: SyncConfig) -> Result<Self> {
-        let user = client_cfg.user.clone();
-        let password = client_cfg.password.clone();
-
-        let client_factory = ClientFactory::new(client_cfg);
-        let client = client_factory.build_client().await.context("init client")?;
-
+    pub async fn new(cfg: SyncConfig) -> Result<Self> {
         let cb = Clipboard::load().context("init clipboard driver")?;
 
-        Ok(Self {
-            client,
-            cfg: sync_cfg,
-            cb,
-            user,
-            password,
-        })
+        Ok(Self { cfg, cb })
     }
 
     pub fn build_text_sync(
         &self,
+        share_client: Arc<ShareClient>,
     ) -> Option<(Synchronizer<TextSyncManager>, mpsc::Sender<Vec<u8>>)> {
         if !self.cfg.text.enable {
             return None;
         }
 
-        Some(self.build_sync("text", TextSyncManager))
+        Some(self.build_sync("text", TextSyncManager, share_client))
     }
 
     pub fn build_image_sync(
         &self,
+        share_client: Arc<ShareClient>,
     ) -> Option<(Synchronizer<ImageSyncManager>, mpsc::Sender<Vec<u8>>)> {
         if !self.cfg.image.enable {
             return None;
         }
 
-        Some(self.build_sync("image", ImageSyncManager))
+        Some(self.build_sync("image", ImageSyncManager, share_client))
     }
 
     fn build_sync<M: ResourceManager>(
         &self,
         name: &'static str,
         mgr: M,
+        share_client: Arc<ShareClient>,
     ) -> (Synchronizer<M>, mpsc::Sender<Vec<u8>>) {
         let (cb_tx, cb_rx) = mpsc::channel(500);
         let sync = Synchronizer {
@@ -72,10 +59,7 @@ impl SyncFactory {
             bucket: None,
             server_hash: None,
             cb_hash: None,
-            client: self.client.clone(),
-            token: None,
-            user: self.user.clone(),
-            password: self.password.clone(),
+            share_client,
             cb: self.cb,
             cb_request_rx: cb_rx,
             server_intv: self.cfg.server_intv_millis,
@@ -83,7 +67,6 @@ impl SyncFactory {
             server_readonly: self.cfg.image.server_readonly,
             cb_readonly: self.cfg.image.cb_readonly,
             first_server: true,
-            notify: None,
         };
         (sync, cb_tx)
     }

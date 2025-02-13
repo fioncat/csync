@@ -8,6 +8,7 @@ mod now;
 mod recycle;
 mod response;
 mod restful;
+mod revision;
 
 use std::process;
 
@@ -46,12 +47,14 @@ async fn build_server(args: ServerArgs) -> Result<RestfulServer> {
 
     let factory = ServerFactory::new(cfg)?;
 
-    let recycler = factory.build_recycler()?;
+    let revision = factory.build_revision()?;
+
+    let recycler = factory.build_recycler(revision.clone())?;
     if let Some(recycler) = recycler {
         recycler.start();
     }
 
-    let srv = factory.build_server()?;
+    let srv = factory.build_server(revision)?;
     Ok(srv)
 }
 

@@ -3,10 +3,12 @@ use std::sync::Arc;
 
 use csync_misc::secret::aes::AesSecret;
 use csync_misc::types::request::ResourceRequest;
+use log::error;
 
 use crate::authn::AuthnUserInfo;
 use crate::db::Database;
 use crate::response::Response;
+use crate::revision::{Revisier, Revision};
 
 use super::files::FilesHandler;
 use super::images::ImagesHandler;
@@ -18,10 +20,11 @@ use super::{PutRequest, ResourceHandler};
 
 pub struct Dispatcher {
     handlers: HashMap<&'static str, Arc<UnionResourceHandler>>,
+    revision: Arc<Revision>,
 }
 
 impl Dispatcher {
-    pub fn new(db: Arc<Database>, secret: Arc<Option<AesSecret>>) -> Self {
+    pub fn new(db: Arc<Database>, secret: Arc<Option<AesSecret>>, revision: Arc<Revision>) -> Self {
         let mut handlers = HashMap::new();
 
         // users
@@ -49,7 +52,7 @@ impl Dispatcher {
         let handler = Arc::new(UnionResourceHandler::Files(handler));
         handlers.insert("files", handler.clone());
 
-        Self { handlers }
+        Self { handlers, revision }
     }
 
     pub fn dispatch(
@@ -63,9 +66,14 @@ impl Dispatcher {
             None => return Response::not_found(),
         };
 
-        match rsc_req {
-            ResourceRequest::PutJson(s) => handler.put(PutRequest::Json(s), user),
+        let mut updated = false;
+        let resp = match rsc_req {
+            ResourceRequest::PutJson(s) => {
+                updated = true;
+                handler.put(PutRequest::Json(s), user)
+            }
             ResourceRequest::PutBinary(metadata, data) => {
+                updated = true;
                 handler.put(PutRequest::Binary(metadata, data), user)
             }
             ResourceRequest::List(mut query, json) => {
@@ -73,7 +81,18 @@ impl Dispatcher {
                 handler.list(query, json, user)
             }
             ResourceRequest::Get(id, json) => handler.get(id, json, user),
-            ResourceRequest::Delete(id) => handler.delete(id, user),
+            ResourceRequest::Delete(id) => {
+                updated = true;
+                handler.delete(id, user)
+            }
+        };
+
+        if updated && resp.is_ok() {
+            if let Err(e) = self.revision.update() {
+                error!("Failed to update revision after updating resource: {:#}", e);
+            }
         }
+
+        resp
     }
 }

@@ -5,6 +5,7 @@ mod delete;
 mod get;
 mod put;
 mod read;
+mod revision;
 mod select;
 mod version;
 mod whoami;
@@ -118,6 +119,7 @@ pub enum Commands {
     Get(get::GetArgs),
     Put(put::PutCommand),
     Read(read::ReadCommand),
+    Revision(revision::RevisionArgs),
     Select(select::SelectArgs),
     Version(version::VersionArgs),
     Whoami(whoami::WhoamiArgs),
@@ -134,6 +136,7 @@ impl RunCommand for App {
             Commands::Get(args) => args.run().await,
             Commands::Put(args) => args.run().await,
             Commands::Read(args) => args.run().await,
+            Commands::Revision(args) => args.run().await,
             Commands::Select(args) => args.run().await,
             Commands::Version(args) => args.run().await,
             Commands::Whoami(args) => args.run().await,

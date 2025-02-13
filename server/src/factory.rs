@@ -12,6 +12,8 @@ use crate::db::factory::DbFactory;
 use crate::handlers::api::ApiHandler;
 use crate::handlers::healthz::HealthzHandler;
 use crate::handlers::login::LoginHandler;
+use crate::revision::factory::RevisionFactory;
+use crate::revision::Revision;
 
 use super::config::ServerConfig;
 use super::db::Database;
@@ -31,9 +33,9 @@ impl ServerFactory {
         Ok(Self { cfg, db })
     }
 
-    pub fn build_server(&self) -> Result<RestfulServer> {
+    pub fn build_server(&self, revision: Arc<Revision>) -> Result<RestfulServer> {
         let ssl = self.build_ssl()?;
-        let ctx = self.build_context()?;
+        let ctx = self.build_context(revision)?;
 
         let mut srv =
             RestfulServer::new(self.cfg.bind.clone(), ssl, ctx, self.cfg.payload_limit_mib);
@@ -75,7 +77,15 @@ impl ServerFactory {
         Ok(Some(builder))
     }
 
-    pub fn build_context(&self) -> Result<Arc<RestfulContext>> {
+    pub fn build_revision(&self) -> Result<Arc<Revision>> {
+        let factory = RevisionFactory;
+        let revision = factory
+            .build_revision(&self.cfg.revision)
+            .context("init revision")?;
+        Ok(Arc::new(revision))
+    }
+
+    pub fn build_context(&self, revision: Arc<Revision>) -> Result<Arc<RestfulContext>> {
         let token_factory = TokenFactory::new(&self.cfg.authn.token).context("init token")?;
 
         let authn_factory = AuthnFactory::new();
@@ -90,8 +100,9 @@ impl ServerFactory {
         let secret = secret_factory
             .build_secret(&self.cfg.secret)
             .context("init secret")?;
+        let secret = Arc::new(secret);
 
-        let api_handler = ApiHandler::new(authn, authz, self.db.clone(), Arc::new(secret));
+        let api_handler = ApiHandler::new(authn, authz, self.db.clone(), secret, revision);
         let healthz_handler = HealthzHandler::new();
 
         let token_generator = token_factory
@@ -118,8 +129,8 @@ impl ServerFactory {
         Ok(Arc::new(ctx))
     }
 
-    pub fn build_recycler(&self) -> Result<Option<Recycler>> {
+    pub fn build_recycler(&self, revision: Arc<Revision>) -> Result<Option<Recycler>> {
         let factory = RecyclerFactory::new();
-        factory.build_recycler(&self.cfg.recycle, self.db.clone())
+        factory.build_recycler(&self.cfg.recycle, self.db.clone(), revision)
     }
 }
