@@ -66,7 +66,7 @@ impl RecycleConfig {
 
 impl RecycleResourceConfig {
     const MAX_KEEP: u64 = 2000;
-    const MIN_KEEP: u64 = 10;
+    const MIN_KEEP: u64 = 3;
     const MAX_KEEP_HOURS: u64 = 10 * 24;
 
     pub fn validate(&self) -> Result<()> {

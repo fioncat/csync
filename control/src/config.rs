@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use clap::Args;
 use csync_misc::client::config::ClientConfig;
 use csync_misc::config::CommonConfig;
+use csync_misc::config::ConfigArgs;
 use csync_misc::display::display_json;
-use csync_misc::types::cmd::ConfigArgs;
 
 use super::RunCommand;
 

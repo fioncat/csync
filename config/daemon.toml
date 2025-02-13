@@ -29,3 +29,9 @@ limit = 5
 [tray.file]
 enable = true
 limit = 5
+
+[log]
+name = "stdout"
+level = "info"
+file_archive = 5
+file_max_size_mib = 10

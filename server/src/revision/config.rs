@@ -10,6 +10,7 @@ pub struct RevisionConfig {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum RevisionType {
+    #[serde(rename = "memory")]
     Memory,
 }
 

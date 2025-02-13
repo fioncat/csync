@@ -337,6 +337,10 @@ impl ApiHandler {
         self.ps.config_path.join(format!("{name}.toml"))
     }
 
+    pub fn get_logs_path(&self) -> PathBuf {
+        self.ps.get_logs_path().join("daemon.log")
+    }
+
     pub fn set_text_action(&self, action: TrayAction) {
         info!("Setting text action: {:?}", action);
         self.text_action.lock().unwrap().replace(action);

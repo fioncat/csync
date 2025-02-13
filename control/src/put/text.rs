@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use clap::Args;
 use csync_misc::client::factory::ClientFactory;
-use csync_misc::types::cmd::ConfigArgs;
+use csync_misc::config::ConfigArgs;
 
 use crate::RunCommand;
 

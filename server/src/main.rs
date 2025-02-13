@@ -15,9 +15,8 @@ use std::process;
 use anyhow::Result;
 use clap::Parser;
 use config::ServerConfig;
-use csync_misc::config::CommonConfig;
+use csync_misc::config::{CommonConfig, ConfigArgs};
 use csync_misc::display::display_json;
-use csync_misc::types::cmd::{ConfigArgs, LogArgs};
 use factory::ServerFactory;
 use log::info;
 use restful::RestfulServer;
@@ -31,19 +30,17 @@ struct ServerArgs {
 
     #[command(flatten)]
     pub config: ConfigArgs,
-
-    #[command(flatten)]
-    pub log: LogArgs,
 }
 
 async fn build_server(args: ServerArgs) -> Result<RestfulServer> {
-    args.log.init()?;
     let ps = args.config.build_path_set()?;
     let cfg: ServerConfig = ps.load_config("server", ServerConfig::default)?;
     if args.print_config {
         display_json(&cfg)?;
         process::exit(0);
     }
+
+    ps.init_logger("server", &cfg.log)?;
 
     let factory = ServerFactory::new(cfg)?;
 

@@ -1,4 +1,3 @@
-pub mod cmd;
 pub mod file;
 pub mod healthz;
 pub mod image;

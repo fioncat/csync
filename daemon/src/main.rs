@@ -10,10 +10,9 @@ use clap::Parser;
 use config::DaemonConfig;
 use csync_misc::client::config::ClientConfig;
 use csync_misc::client::share::build_share_client;
-use csync_misc::config::CommonConfig;
+use csync_misc::config::{CommonConfig, ConfigArgs};
 use csync_misc::display::display_json;
 use csync_misc::filelock::GlobalLock;
-use csync_misc::types::cmd::{ConfigArgs, LogArgs};
 use log::{error, info};
 use serde::Serialize;
 use server::DaemonServer;
@@ -31,9 +30,6 @@ struct DaemonArgs {
 
     #[command(flatten)]
     pub config: ConfigArgs,
-
-    #[command(flatten)]
-    pub log: LogArgs,
 }
 
 #[derive(Debug, Serialize)]
@@ -43,7 +39,6 @@ struct ConfigSet {
 }
 
 async fn run(args: DaemonArgs) -> Result<()> {
-    args.log.init()?;
     let ps = args.config.build_path_set()?;
     let client_cfg: ClientConfig = ps.load_config("client", ClientConfig::default)?;
     let daemon_cfg = ps.load_config("daemon", DaemonConfig::default)?;
@@ -54,6 +49,8 @@ async fn run(args: DaemonArgs) -> Result<()> {
         })?;
         process::exit(0);
     }
+
+    ps.init_logger("daemon", &daemon_cfg.log)?;
 
     let lock_path = ps.data_path.join("daemon.lock");
     let lock = GlobalLock::acquire(lock_path)?;
