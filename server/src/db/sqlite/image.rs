@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS image (
     data BLOB NOT NULL,
     hash TEXT NOT NULL,
     size INTEGER NOT NULL,
+    pin INTEGER DEFAULT 0,
     owner TEXT NOT NULL,
     create_time INTEGER NOT NULL
 );
@@ -38,6 +39,14 @@ pub fn create_image(tx: &Transaction, mut image: ImageRecord) -> Result<ImageRec
     image.id = id;
     image.create_time = now;
     Ok(image)
+}
+
+pub fn update_image_pin(tx: &Transaction, id: u64, pin: bool) -> Result<()> {
+    tx.execute(
+        "UPDATE image SET pin = ? WHERE id = ?",
+        params![pin as i64, id],
+    )?;
+    Ok(())
 }
 
 pub fn is_image_exists(tx: &Transaction, id: u64, owner: Option<&str>) -> Result<bool> {
@@ -65,9 +74,9 @@ pub fn get_image(
     simple: bool,
 ) -> Result<ImageRecord> {
     let sql = if simple {
-        "SELECT id, hash, size, owner, create_time FROM image WHERE id = ?"
+        "SELECT id, hash, size, pin, owner, create_time FROM image WHERE id = ?"
     } else {
-        "SELECT id, data, hash, size, owner, create_time FROM image WHERE id = ?"
+        "SELECT id, data, hash, size, pin, owner, create_time FROM image WHERE id = ?"
     };
 
     let mut sql = String::from(sql);
@@ -86,8 +95,9 @@ pub fn get_image(
                 data: Vec::new(),
                 hash: row.get(1)?,
                 size: row.get(2)?,
-                owner: row.get(3)?,
-                create_time: row.get(4)?,
+                pin: row.get(3)?,
+                owner: row.get(4)?,
+                create_time: row.get(5)?,
             }
         } else {
             ImageRecord {
@@ -95,8 +105,9 @@ pub fn get_image(
                 data: row.get(1)?,
                 hash: row.get(2)?,
                 size: row.get(3)?,
-                owner: row.get(4)?,
-                create_time: row.get(5)?,
+                pin: row.get(4)?,
+                owner: row.get(5)?,
+                create_time: row.get(6)?,
             }
         };
         Ok(record)
@@ -110,9 +121,9 @@ pub fn get_latest_image(
     simple: bool,
 ) -> Result<ImageRecord> {
     let sql = if simple {
-        "SELECT id, hash, size, owner, create_time FROM image"
+        "SELECT id, hash, size, pin, owner, create_time FROM image"
     } else {
-        "SELECT id, data, hash, size, owner, create_time FROM image"
+        "SELECT id, data, hash, size, pin, owner, create_time FROM image"
     };
     let mut sql = String::from(sql);
 
@@ -132,8 +143,9 @@ pub fn get_latest_image(
                 data: Vec::new(),
                 hash: row.get(1)?,
                 size: row.get(2)?,
-                owner: row.get(3)?,
-                create_time: row.get(4)?,
+                pin: row.get(3)?,
+                owner: row.get(4)?,
+                create_time: row.get(5)?,
             }
         } else {
             ImageRecord {
@@ -141,8 +153,9 @@ pub fn get_latest_image(
                 data: row.get(1)?,
                 hash: row.get(2)?,
                 size: row.get(3)?,
-                owner: row.get(4)?,
-                create_time: row.get(5)?,
+                pin: row.get(4)?,
+                owner: row.get(5)?,
+                create_time: row.get(6)?,
             }
         };
         Ok(record)
@@ -155,7 +168,7 @@ pub fn list_images(tx: &Transaction, query: Query) -> Result<Vec<ImageRecord>> {
     let limit_clause = query.generate_limit();
     let params = convert_query_to_params(query);
 
-    let sql = format!("SELECT id, hash, size, owner, create_time FROM image {where_clause} ORDER BY id DESC {limit_clause}");
+    let sql = format!("SELECT id, hash, size, pin, owner, create_time FROM image {where_clause} ORDER BY pin DESC, id DESC {limit_clause}");
 
     let mut stmt = tx.prepare(&sql)?;
     let images = stmt
@@ -165,8 +178,9 @@ pub fn list_images(tx: &Transaction, query: Query) -> Result<Vec<ImageRecord>> {
                 data: Vec::new(),
                 hash: row.get(1)?,
                 size: row.get(2)?,
-                owner: row.get(3)?,
-                create_time: row.get(4)?,
+                pin: row.get(3)?,
+                owner: row.get(4)?,
+                create_time: row.get(5)?,
             })
         })?
         .map(|r| r.unwrap())
@@ -175,8 +189,13 @@ pub fn list_images(tx: &Transaction, query: Query) -> Result<Vec<ImageRecord>> {
     Ok(images)
 }
 
-pub fn count_images(tx: &Transaction, owner: Option<&str>) -> Result<usize> {
-    let mut sql = String::from("SELECT COUNT(*) FROM image");
+pub fn count_images(tx: &Transaction, owner: Option<&str>, with_pin: bool) -> Result<usize> {
+    let mut sql = if with_pin {
+        "SELECT COUNT(*) FROM image"
+    } else {
+        "SELECT COUNT(*) FROM image WHERE pin = 0"
+    }
+    .to_string();
     let params = if let Some(owner) = owner {
         sql.push_str(" WHERE owner = ?");
         vec![owner]
@@ -190,7 +209,7 @@ pub fn count_images(tx: &Transaction, owner: Option<&str>) -> Result<usize> {
 }
 
 pub fn get_oldest_image_ids(tx: &Transaction, limit: usize) -> Result<Vec<u64>> {
-    let mut stmt = tx.prepare("SELECT id FROM image ORDER BY id ASC LIMIT ?")?;
+    let mut stmt = tx.prepare("SELECT id FROM image WHERE pin = 0 ORDER BY id ASC LIMIT ?")?;
     let ids = stmt
         .query_map([limit], |row| row.get(0))
         .unwrap()
@@ -205,7 +224,10 @@ pub fn delete_image(tx: &Transaction, id: u64) -> Result<()> {
 }
 
 pub fn delete_images_before_time(tx: &Transaction, time: u64) -> Result<usize> {
-    let count = tx.execute("DELETE FROM image WHERE create_time < ?", params![time])?;
+    let count = tx.execute(
+        "DELETE FROM image WHERE create_time < ? AND pin = 0",
+        params![time],
+    )?;
     Ok(count)
 }
 

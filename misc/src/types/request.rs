@@ -11,6 +11,9 @@ pub enum ResourceRequest {
     /// Push new JSON resource data
     PutJson(String),
 
+    /// Patch resource metadata
+    Patch(u64, PatchResource),
+
     /// Retrieve a resource.
     /// First parameter is the resource ID.
     /// Second parameter indicates whether to only fetch resource metadata.
@@ -70,6 +73,7 @@ impl ResourceRequest {
         match self {
             ResourceRequest::PutBinary(_, _) => "put",
             ResourceRequest::PutJson(_) => "put",
+            ResourceRequest::Patch(_, _) => "put",
             ResourceRequest::Get(_, head) => {
                 if *head {
                     "head"
@@ -154,6 +158,18 @@ impl Query {
         } else {
             ""
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PatchResource {
+    pub pin: bool,
+}
+
+impl PatchResource {
+    pub fn update_pin(mut self) -> Self {
+        self.pin = true;
+        self
     }
 }
 

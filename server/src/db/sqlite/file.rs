@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS file (
     data BLOB NOT NULL,
     hash TEXT NOT NULL,
     size INTEGER NOT NULL,
+    pin INTEGER DEFAULT 0,
     mode INTEGER NOT NULL,
     owner TEXT NOT NULL,
     create_time INTEGER NOT NULL
@@ -39,6 +40,14 @@ pub fn create_file(tx: &Transaction, mut file: FileRecord) -> Result<FileRecord>
     file.id = id;
     file.create_time = now;
     Ok(file)
+}
+
+pub fn update_file_pin(tx: &Transaction, id: u64, pin: bool) -> Result<()> {
+    tx.execute(
+        "UPDATE file SET pin = ? WHERE id = ?",
+        params![pin as i64, id],
+    )?;
+    Ok(())
 }
 
 pub fn is_file_exists(tx: &Transaction, id: u64, owner: Option<&str>) -> Result<bool> {
@@ -66,9 +75,9 @@ pub fn get_file(
     simple: bool,
 ) -> Result<FileRecord> {
     let sql = if simple {
-        "SELECT id, name, hash, size, mode, owner, create_time FROM file WHERE id = ?"
+        "SELECT id, name, hash, size, mode, pin, owner, create_time FROM file WHERE id = ?"
     } else {
-        "SELECT id, name, data, hash, size, mode, owner, create_time FROM file WHERE id = ?"
+        "SELECT id, name, data, hash, size, mode, pin, owner, create_time FROM file WHERE id = ?"
     };
     let mut sql = String::from(sql);
     let params = if let Some(owner) = owner {
@@ -88,8 +97,9 @@ pub fn get_file(
                 hash: row.get(2)?,
                 size: row.get(3)?,
                 mode: row.get(4)?,
-                owner: row.get(5)?,
-                create_time: row.get(6)?,
+                pin: row.get(5)?,
+                owner: row.get(6)?,
+                create_time: row.get(7)?,
             }
         } else {
             FileRecord {
@@ -99,8 +109,9 @@ pub fn get_file(
                 hash: row.get(3)?,
                 size: row.get(4)?,
                 mode: row.get(5)?,
-                owner: row.get(6)?,
-                create_time: row.get(7)?,
+                pin: row.get(6)?,
+                owner: row.get(7)?,
+                create_time: row.get(8)?,
             }
         };
         Ok(record)
@@ -110,9 +121,9 @@ pub fn get_file(
 
 pub fn get_latest_file(tx: &Transaction, owner: Option<&str>, simple: bool) -> Result<FileRecord> {
     let sql = if simple {
-        "SELECT id, name, hash, size, mode, owner, create_time FROM file"
+        "SELECT id, name, hash, size, mode, pin, owner, create_time FROM file"
     } else {
-        "SELECT id, name, data, hash, size, mode, owner, create_time FROM file"
+        "SELECT id, name, data, hash, size, mode, pin, owner, create_time FROM file"
     };
     let mut sql = String::from(sql);
 
@@ -134,8 +145,9 @@ pub fn get_latest_file(tx: &Transaction, owner: Option<&str>, simple: bool) -> R
                 hash: row.get(2)?,
                 size: row.get(3)?,
                 mode: row.get(4)?,
-                owner: row.get(5)?,
-                create_time: row.get(6)?,
+                pin: row.get(5)?,
+                owner: row.get(6)?,
+                create_time: row.get(7)?,
             }
         } else {
             FileRecord {
@@ -145,8 +157,9 @@ pub fn get_latest_file(tx: &Transaction, owner: Option<&str>, simple: bool) -> R
                 hash: row.get(3)?,
                 size: row.get(4)?,
                 mode: row.get(5)?,
-                owner: row.get(6)?,
-                create_time: row.get(7)?,
+                pin: row.get(6)?,
+                owner: row.get(7)?,
+                create_time: row.get(8)?,
             }
         };
         Ok(record)
@@ -159,7 +172,7 @@ pub fn list_files(tx: &Transaction, query: Query) -> Result<Vec<FileRecord>> {
     let limit_clause = query.generate_limit();
     let params = convert_query_to_params(query);
 
-    let sql = format!("SELECT id, name, hash, size, mode, owner, create_time FROM file {where_clause} ORDER BY create_time DESC {limit_clause}");
+    let sql = format!("SELECT id, name, hash, size, mode, pin, owner, create_time FROM file {where_clause} ORDER BY create_time DESC {limit_clause}");
 
     let mut stmt = tx.prepare(&sql)?;
     let files = stmt
@@ -171,8 +184,9 @@ pub fn list_files(tx: &Transaction, query: Query) -> Result<Vec<FileRecord>> {
                 hash: row.get(2)?,
                 size: row.get(3)?,
                 mode: row.get(4)?,
-                owner: row.get(5)?,
-                create_time: row.get(6)?,
+                pin: row.get(5)?,
+                owner: row.get(6)?,
+                create_time: row.get(7)?,
             })
         })?
         .map(|r| r.unwrap())
@@ -181,8 +195,13 @@ pub fn list_files(tx: &Transaction, query: Query) -> Result<Vec<FileRecord>> {
     Ok(files)
 }
 
-pub fn count_files(tx: &Transaction, owner: Option<&str>) -> Result<usize> {
-    let mut sql = String::from("SELECT COUNT(*) FROM file");
+pub fn count_files(tx: &Transaction, owner: Option<&str>, with_pin: bool) -> Result<usize> {
+    let mut sql = if with_pin {
+        "SELECT COUNT(*) FROM file"
+    } else {
+        "SELECT COUNT(*) FROM file WHERE pin = 0"
+    }
+    .to_string();
     let params = if let Some(owner) = owner {
         sql.push_str(" WHERE owner = ?");
         vec![owner]
@@ -196,7 +215,7 @@ pub fn count_files(tx: &Transaction, owner: Option<&str>) -> Result<usize> {
 }
 
 pub fn get_oldest_file_ids(tx: &Transaction, limit: usize) -> Result<Vec<u64>> {
-    let mut stmt = tx.prepare("SELECT id FROM file ORDER BY id ASC LIMIT ?")?;
+    let mut stmt = tx.prepare("SELECT id FROM file WHERE pin = 0 ORDER BY id ASC LIMIT ?")?;
     let names = stmt
         .query_map([limit], |row| row.get(0))
         .unwrap()
@@ -211,7 +230,7 @@ pub fn delete_file(tx: &Transaction, id: u64) -> Result<()> {
 }
 
 pub fn delete_files_before_time(tx: &Transaction, time: u64) -> Result<usize> {
-    let count = tx.execute("DELETE FROM file WHERE create_time < ?", [time])?;
+    let count = tx.execute("DELETE FROM file WHERE create_time < ? AND pin = 0", [time])?;
     Ok(count)
 }
 

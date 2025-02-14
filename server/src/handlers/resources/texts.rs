@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use csync_misc::secret::aes::AesSecret;
 use csync_misc::secret::{base64_encode, Secret};
-use csync_misc::types::request::Query;
+use csync_misc::types::request::{PatchResource, Query};
 use csync_misc::types::text::Text;
 use log::error;
 use sha2::{Digest, Sha256};
@@ -66,6 +66,7 @@ impl ResourceHandler for TextsHandler {
             content,
             hash,
             size,
+            pin: false,
             owner: user.name,
             create_time: 0,
         };
@@ -93,6 +94,39 @@ impl ResourceHandler for TextsHandler {
             }
             Err(e) => {
                 error!("Failed to create text: {:#}", e);
+                Response::error(response::DATABASE_ERROR)
+            }
+        }
+    }
+
+    fn patch(&self, id: u64, patch: PatchResource, user: AuthnUserInfo) -> Response {
+        let query_owner = user.get_query_owner();
+
+        let result = if patch.pin {
+            self.db.with_transaction(|tx, cache| {
+                if !tx.is_text_exists(id, query_owner)? {
+                    return Ok(false);
+                }
+                let text = tx.get_text(id, query_owner, true)?;
+                let update = !text.pin;
+                tx.update_text_pin(id, update)?;
+                cache.clear_text()?;
+                Ok(true)
+            })
+        } else {
+            Ok(false)
+        };
+
+        match result {
+            Ok(ok) => {
+                if ok {
+                    Response::ok()
+                } else {
+                    Response::not_found()
+                }
+            }
+            Err(e) => {
+                error!("Failed to patch text: {:#}", e);
                 Response::error(response::DATABASE_ERROR)
             }
         }
@@ -142,7 +176,7 @@ impl ResourceHandler for TextsHandler {
                 if let Some(text) = cache.get_latest_text(query_owner)? {
                     return Ok(Some(text));
                 }
-                if tx.count_texts(query_owner)? == 0 {
+                if tx.count_texts(query_owner, true)? == 0 {
                     return Ok(None);
                 }
                 let record = tx.get_latest_text(query_owner, json)?;
@@ -243,6 +277,7 @@ impl TextsHandler {
                 content: None,
                 hash: record.hash,
                 size: record.size,
+                pin: record.pin,
                 owner: record.owner,
                 create_time: record.create_time,
                 secret: false,
@@ -253,6 +288,7 @@ impl TextsHandler {
                 content: Some(record.content),
                 hash: record.hash,
                 size: record.size,
+                pin: record.pin,
                 owner: record.owner,
                 create_time: record.create_time,
                 secret: false,

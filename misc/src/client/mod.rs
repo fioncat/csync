@@ -19,7 +19,7 @@ use crate::secret::{base64_decode, Secret};
 use crate::types::file::FileInfo;
 use crate::types::healthz::HealthzResponse;
 use crate::types::image::{Image, ENABLE_SECRET};
-use crate::types::request::{Payload, Query};
+use crate::types::request::{PatchResource, Payload, Query};
 use crate::types::response::{CommonResponse, ResourceResponse, MIME_JSON, MIME_OCTET_STREAM};
 use crate::types::revision::RevisionResponse;
 use crate::types::text::Text;
@@ -451,6 +451,7 @@ impl Client {
             hash,
             size: data.len() as u64,
             secret: false,
+            pin: false,
             owner: String::new(),
             create_time: 0,
         };
@@ -578,6 +579,14 @@ impl Client {
     pub async fn delete_resource(&self, name: &str, id: &str) -> Result<(), RequestError> {
         let path = format!("api/{name}/{id}");
         self.do_request_operation(Method::DELETE, &path, Payload::None)
+            .await
+    }
+
+    pub async fn update_resource_pin(&self, name: &str, id: u64) -> Result<(), RequestError> {
+        let path = format!("api/{name}/{id}");
+        let patch = PatchResource::default().update_pin();
+        let json = serde_json::to_string(&patch).unwrap();
+        self.do_request_operation(Method::PATCH, &path, Payload::Json(json))
             .await
     }
 

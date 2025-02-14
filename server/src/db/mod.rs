@@ -70,6 +70,8 @@ pub trait Transaction {
     // Text operations
     /// Creates a new text record
     fn create_text(&self, text: TextRecord) -> Result<TextRecord>;
+    /// Updates text pin status
+    fn update_text_pin(&self, id: u64, pin: bool) -> Result<()>;
     /// Checks if a text exists
     fn is_text_exists(&self, id: u64, owner: Option<&str>) -> Result<bool>;
     /// Retrieves a text by ID
@@ -79,7 +81,7 @@ pub trait Transaction {
     /// Lists texts based on query
     fn list_texts(&self, query: Query, simple: bool) -> Result<Vec<TextRecord>>;
     /// Counts texts for an owner
-    fn count_texts(&self, owner: Option<&str>) -> Result<usize>;
+    fn count_texts(&self, owner: Option<&str>, with_pin: bool) -> Result<usize>;
     /// Gets IDs of oldest texts
     fn get_oldest_text_ids(&self, limit: usize) -> Result<Vec<u64>>;
     /// Deletes a text by ID
@@ -92,6 +94,8 @@ pub trait Transaction {
     // Image operations
     /// Creates a new image record
     fn create_image(&self, image: ImageRecord) -> Result<ImageRecord>;
+    /// Updates image pin status
+    fn update_image_pin(&self, id: u64, pin: bool) -> Result<()>;
     /// Checks if an image exists
     fn is_image_exists(&self, id: u64, owner: Option<&str>) -> Result<bool>;
     /// Retrieves an image by ID
@@ -101,7 +105,7 @@ pub trait Transaction {
     /// Lists images based on query
     fn list_images(&self, query: Query) -> Result<Vec<ImageRecord>>;
     /// Counts images for an owner
-    fn count_images(&self, owner: Option<&str>) -> Result<usize>;
+    fn count_images(&self, owner: Option<&str>, with_pin: bool) -> Result<usize>;
     /// Gets IDs of oldest images
     fn get_oldest_image_ids(&self, limit: usize) -> Result<Vec<u64>>;
     /// Deletes an image by ID
@@ -114,6 +118,8 @@ pub trait Transaction {
     // File operations
     /// Creates a new file record
     fn create_file(&self, file: FileRecord) -> Result<FileRecord>;
+    /// Updates file pin status
+    fn update_file_pin(&self, id: u64, pin: bool) -> Result<()>;
     /// Checks if a file exists
     fn is_file_exists(&self, id: u64, owner: Option<&str>) -> Result<bool>;
     /// Retrieves a file by ID
@@ -123,7 +129,7 @@ pub trait Transaction {
     /// Lists files based on query
     fn list_files(&self, query: Query) -> Result<Vec<FileRecord>>;
     /// Counts files for an owner
-    fn count_files(&self, owner: Option<&str>) -> Result<usize>;
+    fn count_files(&self, owner: Option<&str>, with_pin: bool) -> Result<usize>;
     /// Gets IDs of oldest files
     fn get_oldest_file_ids(&self, limit: usize) -> Result<Vec<u64>>;
     /// Deletes a file by ID
@@ -178,6 +184,8 @@ pub struct TextRecord {
     pub hash: String,
     /// Content size in bytes
     pub size: u64,
+    /// Is text pinned
+    pub pin: bool,
     /// Owner's name
     pub owner: String,
     /// Creation timestamp
@@ -195,6 +203,8 @@ pub struct ImageRecord {
     pub hash: String,
     /// File size in bytes
     pub size: u64,
+    /// Is image pinned
+    pub pin: bool,
     /// Owner's name
     pub owner: String,
     /// Creation timestamp
@@ -216,6 +226,8 @@ pub struct FileRecord {
     pub size: u64,
     /// File mode/permissions
     pub mode: u32,
+    /// Is file pinned
+    pub pin: bool,
     /// Owner's name
     pub owner: String,
     /// Creation timestamp
@@ -438,6 +450,12 @@ impl Transaction for UnionTransaction<'_> {
         }
     }
 
+    fn update_text_pin(&self, id: u64, pin: bool) -> Result<()> {
+        match self {
+            UnionTransaction::Sqlite(tx) => tx.update_text_pin(id, pin),
+        }
+    }
+
     fn is_text_exists(&self, id: u64, owner: Option<&str>) -> Result<bool> {
         match self {
             UnionTransaction::Sqlite(tx) => tx.is_text_exists(id, owner),
@@ -462,9 +480,9 @@ impl Transaction for UnionTransaction<'_> {
         }
     }
 
-    fn count_texts(&self, owner: Option<&str>) -> Result<usize> {
+    fn count_texts(&self, owner: Option<&str>, with_pin: bool) -> Result<usize> {
         match self {
-            UnionTransaction::Sqlite(tx) => tx.count_texts(owner),
+            UnionTransaction::Sqlite(tx) => tx.count_texts(owner, with_pin),
         }
     }
 
@@ -498,6 +516,12 @@ impl Transaction for UnionTransaction<'_> {
         }
     }
 
+    fn update_image_pin(&self, id: u64, pin: bool) -> Result<()> {
+        match self {
+            UnionTransaction::Sqlite(tx) => tx.update_image_pin(id, pin),
+        }
+    }
+
     fn is_image_exists(&self, id: u64, owner: Option<&str>) -> Result<bool> {
         match self {
             UnionTransaction::Sqlite(tx) => tx.is_image_exists(id, owner),
@@ -522,9 +546,9 @@ impl Transaction for UnionTransaction<'_> {
         }
     }
 
-    fn count_images(&self, owner: Option<&str>) -> Result<usize> {
+    fn count_images(&self, owner: Option<&str>, with_pin: bool) -> Result<usize> {
         match self {
-            UnionTransaction::Sqlite(tx) => tx.count_images(owner),
+            UnionTransaction::Sqlite(tx) => tx.count_images(owner, with_pin),
         }
     }
 
@@ -558,6 +582,12 @@ impl Transaction for UnionTransaction<'_> {
         }
     }
 
+    fn update_file_pin(&self, id: u64, pin: bool) -> Result<()> {
+        match self {
+            UnionTransaction::Sqlite(tx) => tx.update_file_pin(id, pin),
+        }
+    }
+
     fn is_file_exists(&self, id: u64, owner: Option<&str>) -> Result<bool> {
         match self {
             UnionTransaction::Sqlite(tx) => tx.is_file_exists(id, owner),
@@ -582,9 +612,9 @@ impl Transaction for UnionTransaction<'_> {
         }
     }
 
-    fn count_files(&self, owner: Option<&str>) -> Result<usize> {
+    fn count_files(&self, owner: Option<&str>, with_pin: bool) -> Result<usize> {
         match self {
-            UnionTransaction::Sqlite(tx) => tx.count_files(owner),
+            UnionTransaction::Sqlite(tx) => tx.count_files(owner, with_pin),
         }
     }
 

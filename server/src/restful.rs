@@ -73,6 +73,7 @@ impl RestfulServer {
                     web::scope(Self::API_PATH)
                         .route("/{path:.*}", web::get().to(Self::handle_api))
                         .route("/{path:.*}", web::put().to(Self::handle_api))
+                        .route("/{path:.*}", web::patch().to(Self::handle_api))
                         .route("/{path:.*}", web::delete().to(Self::handle_api)),
                 )
                 .service(

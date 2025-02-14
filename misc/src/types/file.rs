@@ -24,6 +24,9 @@ pub struct FileInfo {
     /// File unix mode
     pub mode: u32,
 
+    /// File pin status
+    pub pin: bool,
+
     /// File owner
     pub owner: String,
 
@@ -40,8 +43,13 @@ impl TerminalDisplay for FileInfo {
     }
 
     fn table_row(self) -> Vec<String> {
+        let id = if self.pin {
+            format!("* {}", self.id)
+        } else {
+            self.id.to_string()
+        };
         vec![
-            self.id.to_string(),
+            id,
             self.name,
             human_bytes(self.size),
             self.owner,
@@ -50,7 +58,9 @@ impl TerminalDisplay for FileInfo {
     }
 
     fn csv_titles() -> Vec<&'static str> {
-        vec!["id", "name", "hash", "size", "mode", "owner", "create"]
+        vec![
+            "id", "name", "hash", "size", "mode", "pin", "owner", "create",
+        ]
     }
 
     fn csv_row(self) -> HashMap<&'static str, String> {
@@ -60,6 +70,7 @@ impl TerminalDisplay for FileInfo {
             ("hash", self.hash),
             ("size", self.size.to_string()),
             ("mode", self.mode.to_string()),
+            ("pin", self.pin.to_string()),
             ("owner", self.owner),
             ("create", self.create_time.to_string()),
         ]

@@ -3,6 +3,7 @@ mod cb;
 mod config;
 mod delete;
 mod get;
+mod pin;
 mod put;
 mod read;
 mod revision;
@@ -123,6 +124,7 @@ pub enum Commands {
     Select(select::SelectArgs),
     Version(version::VersionArgs),
     Whoami(whoami::WhoamiArgs),
+    Pin(pin::PinArgs),
 }
 
 #[async_trait]
@@ -140,6 +142,7 @@ impl RunCommand for App {
             Commands::Select(args) => args.run().await,
             Commands::Version(args) => args.run().await,
             Commands::Whoami(args) => args.run().await,
+            Commands::Pin(args) => args.run().await,
         }
     }
 }

@@ -140,6 +140,10 @@ impl Transaction for SqliteTransaction<'_> {
         text::create_text(&self.tx, text)
     }
 
+    fn update_text_pin(&self, id: u64, pin: bool) -> Result<()> {
+        text::update_text_pin(&self.tx, id, pin)
+    }
+
     fn is_text_exists(&self, id: u64, owner: Option<&str>) -> Result<bool> {
         text::is_text_exists(&self.tx, id, owner)
     }
@@ -156,8 +160,8 @@ impl Transaction for SqliteTransaction<'_> {
         text::list_texts(&self.tx, query, head)
     }
 
-    fn count_texts(&self, owner: Option<&str>) -> Result<usize> {
-        text::count_texts(&self.tx, owner)
+    fn count_texts(&self, owner: Option<&str>, with_pin: bool) -> Result<usize> {
+        text::count_texts(&self.tx, owner, with_pin)
     }
 
     fn get_oldest_text_ids(&self, limit: usize) -> Result<Vec<u64>> {
@@ -180,6 +184,10 @@ impl Transaction for SqliteTransaction<'_> {
         image::create_image(&self.tx, image)
     }
 
+    fn update_image_pin(&self, id: u64, pin: bool) -> Result<()> {
+        image::update_image_pin(&self.tx, id, pin)
+    }
+
     fn is_image_exists(&self, id: u64, owner: Option<&str>) -> Result<bool> {
         image::is_image_exists(&self.tx, id, owner)
     }
@@ -196,8 +204,8 @@ impl Transaction for SqliteTransaction<'_> {
         image::list_images(&self.tx, query)
     }
 
-    fn count_images(&self, owner: Option<&str>) -> Result<usize> {
-        image::count_images(&self.tx, owner)
+    fn count_images(&self, owner: Option<&str>, with_pin: bool) -> Result<usize> {
+        image::count_images(&self.tx, owner, with_pin)
     }
 
     fn get_oldest_image_ids(&self, limit: usize) -> Result<Vec<u64>> {
@@ -220,6 +228,10 @@ impl Transaction for SqliteTransaction<'_> {
         file::create_file(&self.tx, file)
     }
 
+    fn update_file_pin(&self, id: u64, pin: bool) -> Result<()> {
+        file::update_file_pin(&self.tx, id, pin)
+    }
+
     fn is_file_exists(&self, id: u64, owner: Option<&str>) -> Result<bool> {
         file::is_file_exists(&self.tx, id, owner)
     }
@@ -236,8 +248,8 @@ impl Transaction for SqliteTransaction<'_> {
         file::list_files(&self.tx, query)
     }
 
-    fn count_files(&self, owner: Option<&str>) -> Result<usize> {
-        file::count_files(&self.tx, owner)
+    fn count_files(&self, owner: Option<&str>, with_pin: bool) -> Result<usize> {
+        file::count_files(&self.tx, owner, with_pin)
     }
 
     fn get_oldest_file_ids(&self, limit: usize) -> Result<Vec<u64>> {

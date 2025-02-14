@@ -52,17 +52,20 @@ pub struct MenuData {
 pub struct MenuTextItem {
     pub id: u64,
     pub text: String,
+    pub pin: bool,
 }
 
 pub struct MenuImageItem {
     pub id: u64,
     pub size: String,
+    pub pin: bool,
 }
 
 pub struct MenuFileItem {
     pub id: u64,
     pub name: String,
     pub size: String,
+    pub pin: bool,
 }
 
 impl ApiHandler {
@@ -125,8 +128,9 @@ impl ApiHandler {
             let texts = client.read_texts(query).await?;
             for text in texts {
                 let id = text.id;
+                let pin = text.pin;
                 let text = truncate_text(text.content.unwrap(), self.truncate_size);
-                data.texts.push(MenuTextItem { id, text });
+                data.texts.push(MenuTextItem { id, text, pin });
             }
         }
 
@@ -139,8 +143,9 @@ impl ApiHandler {
             let images: Vec<Image> = client.list_resources("images", query).await?;
             for image in images {
                 let id = image.id;
+                let pin = image.pin;
                 let size = human_bytes(image.size);
-                data.images.push(MenuImageItem { id, size });
+                data.images.push(MenuImageItem { id, size, pin });
             }
         }
 
@@ -155,7 +160,13 @@ impl ApiHandler {
                 let id = file.id;
                 let name = file.name;
                 let size = human_bytes(file.size);
-                data.files.push(MenuFileItem { id, name, size });
+                let pin = file.pin;
+                data.files.push(MenuFileItem {
+                    id,
+                    name,
+                    size,
+                    pin,
+                });
             }
         }
 
@@ -191,6 +202,15 @@ impl ApiHandler {
         let text = client.read_text(id).await?;
 
         self.send_sync(text.content.unwrap().into_bytes()).await;
+
+        Ok(())
+    }
+
+    pub async fn update_text_pin(&self, id: u64) -> Result<()> {
+        info!("Updating text {id} pin");
+
+        let client = self.get_client().await;
+        client.update_resource_pin("texts", id).await?;
 
         Ok(())
     }
@@ -237,6 +257,15 @@ impl ApiHandler {
         let data = client.read_image(id).await?;
 
         self.send_sync(data).await;
+
+        Ok(())
+    }
+
+    pub async fn update_image_pin(&self, id: u64) -> Result<()> {
+        info!("Updating image {id} pin");
+
+        let client = self.get_client().await;
+        client.update_resource_pin("images", id).await?;
 
         Ok(())
     }
@@ -296,6 +325,15 @@ impl ApiHandler {
         let client = self.get_client().await;
         let (_, data) = client.read_file(id).await?;
         self.send_sync(data).await;
+
+        Ok(())
+    }
+
+    pub async fn update_file_pin(&self, id: u64) -> Result<()> {
+        info!("Updating file {id} pin");
+
+        let client = self.get_client().await;
+        client.update_resource_pin("files", id).await?;
 
         Ok(())
     }

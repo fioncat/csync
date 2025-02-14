@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::HttpRequest;
 use csync_misc::secret::aes::AesSecret;
-use csync_misc::types::request::{Payload, Query, ResourceRequest};
+use csync_misc::types::request::{PatchResource, Payload, Query, ResourceRequest};
 use csync_misc::types::revision::RevisionResponse;
 use csync_misc::types::user::{CaniResponse, WhoamiResponse};
 use log::error;
@@ -196,6 +196,28 @@ impl Handler for ApiHandler {
                 Payload::None => {
                     return Response::bad_request("Request body is empty or too large")
                 }
+            },
+            "patch" => match payload {
+                Payload::Binary(_, _) => {
+                    return Response::bad_request("Request body must be json for patch")
+                }
+                Payload::Json(json) => {
+                    let patch: PatchResource = match serde_json::from_str(&json) {
+                        Ok(patch) => patch,
+                        Err(_) => return Response::bad_request("Invalid patch json"),
+                    };
+                    let id = match id {
+                        Some(id) => id,
+                        None => return Response::bad_request("Resource id is required"),
+                    };
+                    let id: u64 = match id.parse() {
+                        Ok(id) => id,
+                        Err(_) => return Response::bad_request("Invalid resource id"),
+                    };
+
+                    ResourceRequest::Patch(id, patch)
+                }
+                Payload::None => return Response::bad_request("Body is required"),
             },
             "get" => match id {
                 Some(id) => ResourceRequest::Get(id, is_json),
