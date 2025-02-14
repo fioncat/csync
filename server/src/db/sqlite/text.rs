@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS text (
     content TEXT NOT NULL,
     hash TEXT NOT NULL,
     size INTEGER NOT NULL,
+    pin INTEGER DEFAULT 0,
     owner TEXT NOT NULL,
     create_time INTEGER NOT NULL
 );
@@ -38,6 +39,14 @@ pub fn create_text(tx: &Transaction, mut text: TextRecord) -> Result<TextRecord>
     text.id = id;
     text.create_time = now;
     Ok(text)
+}
+
+pub fn update_text_pin(tx: &Transaction, id: u64, pin: bool) -> Result<()> {
+    tx.execute(
+        "UPDATE text SET pin = ? WHERE id = ?",
+        params![pin as i64, id],
+    )?;
+    Ok(())
 }
 
 pub fn is_text_exists(tx: &Transaction, id: u64, owner: Option<&str>) -> Result<bool> {
@@ -65,9 +74,9 @@ pub fn get_text(
     simple: bool,
 ) -> Result<TextRecord> {
     let sql = if simple {
-        "SELECT id, hash, size, owner, create_time FROM text WHERE id = ?"
+        "SELECT id, hash, size, pin, owner, create_time FROM text WHERE id = ?"
     } else {
-        "SELECT id, content, hash, size, owner, create_time FROM text WHERE id = ?"
+        "SELECT id, content, hash, size, pin, owner, create_time FROM text WHERE id = ?"
     };
 
     let mut sql = String::from(sql);
@@ -87,8 +96,9 @@ pub fn get_text(
                 content: String::new(),
                 hash: row.get(1)?,
                 size: row.get(2)?,
-                owner: row.get(3)?,
-                create_time: row.get(4)?,
+                pin: row.get(3)?,
+                owner: row.get(4)?,
+                create_time: row.get(5)?,
             }
         } else {
             TextRecord {
@@ -96,8 +106,9 @@ pub fn get_text(
                 content: row.get(1)?,
                 hash: row.get(2)?,
                 size: row.get(3)?,
-                owner: row.get(4)?,
-                create_time: row.get(5)?,
+                pin: row.get(4)?,
+                owner: row.get(5)?,
+                create_time: row.get(6)?,
             }
         };
         Ok(record)
@@ -107,9 +118,9 @@ pub fn get_text(
 
 pub fn get_latest_text(tx: &Transaction, owner: Option<&str>, simple: bool) -> Result<TextRecord> {
     let sql = if simple {
-        "SELECT id, hash, size, owner, create_time FROM text"
+        "SELECT id, hash, size, pin, owner, create_time FROM text"
     } else {
-        "SELECT id, content, hash, size, owner, create_time FROM text"
+        "SELECT id, content, hash, size, pin, owner, create_time FROM text"
     };
     let mut sql = String::from(sql);
 
@@ -129,8 +140,9 @@ pub fn get_latest_text(tx: &Transaction, owner: Option<&str>, simple: bool) -> R
                 content: String::new(),
                 hash: row.get(1)?,
                 size: row.get(2)?,
-                owner: row.get(3)?,
-                create_time: row.get(4)?,
+                pin: row.get(3)?,
+                owner: row.get(4)?,
+                create_time: row.get(5)?,
             }
         } else {
             TextRecord {
@@ -138,8 +150,9 @@ pub fn get_latest_text(tx: &Transaction, owner: Option<&str>, simple: bool) -> R
                 content: row.get(1)?,
                 hash: row.get(2)?,
                 size: row.get(3)?,
-                owner: row.get(4)?,
-                create_time: row.get(5)?,
+                pin: row.get(4)?,
+                owner: row.get(5)?,
+                create_time: row.get(6)?,
             }
         };
         Ok(record)
@@ -153,9 +166,9 @@ pub fn list_texts(tx: &Transaction, query: Query, simple: bool) -> Result<Vec<Te
     let params = convert_query_to_params(query);
 
     let sql = if simple {
-        format!("SELECT id, hash, size, owner, create_time FROM text {where_clause} ORDER BY id DESC {limit_clause}")
+        format!("SELECT id, hash, size, pin, owner, create_time FROM text {where_clause} ORDER BY pin DESC, id DESC {limit_clause}")
     } else {
-        format!("SELECT id, content, hash, size, owner, create_time FROM text {where_clause} ORDER BY id DESC {limit_clause}")
+        format!("SELECT id, content, hash, size, pin, owner, create_time FROM text {where_clause} ORDER BY pin DESC, id DESC {limit_clause}")
     };
 
     let mut stmt = tx.prepare(&sql)?;
@@ -167,8 +180,9 @@ pub fn list_texts(tx: &Transaction, query: Query, simple: bool) -> Result<Vec<Te
                     content: String::new(),
                     hash: row.get(1)?,
                     size: row.get(2)?,
-                    owner: row.get(3)?,
-                    create_time: row.get(4)?,
+                    pin: row.get(3)?,
+                    owner: row.get(4)?,
+                    create_time: row.get(5)?,
                 }
             } else {
                 TextRecord {
@@ -176,8 +190,9 @@ pub fn list_texts(tx: &Transaction, query: Query, simple: bool) -> Result<Vec<Te
                     content: row.get(1)?,
                     hash: row.get(2)?,
                     size: row.get(3)?,
-                    owner: row.get(4)?,
-                    create_time: row.get(5)?,
+                    pin: row.get(4)?,
+                    owner: row.get(5)?,
+                    create_time: row.get(6)?,
                 }
             };
             Ok(record)
@@ -188,8 +203,13 @@ pub fn list_texts(tx: &Transaction, query: Query, simple: bool) -> Result<Vec<Te
     Ok(texts)
 }
 
-pub fn count_texts(tx: &Transaction, owner: Option<&str>) -> Result<usize> {
-    let mut sql = String::from("SELECT COUNT(*) FROM text");
+pub fn count_texts(tx: &Transaction, owner: Option<&str>, with_pin: bool) -> Result<usize> {
+    let mut sql = if with_pin {
+        "SELECT COUNT(*) FROM text"
+    } else {
+        "SELECT COUNT(*) FROM text WHERE pin = 0"
+    }
+    .to_string();
     let params = if let Some(owner) = owner {
         sql.push_str(" WHERE owner = ?");
         vec![owner]
@@ -203,7 +223,7 @@ pub fn count_texts(tx: &Transaction, owner: Option<&str>) -> Result<usize> {
 }
 
 pub fn get_oldest_text_ids(tx: &Transaction, limit: usize) -> Result<Vec<u64>> {
-    let mut stmt = tx.prepare("SELECT id FROM text ORDER BY id ASC LIMIT ?")?;
+    let mut stmt = tx.prepare("SELECT id FROM text WHERE pin = 0 ORDER BY id ASC LIMIT ?")?;
     let ids = stmt
         .query_map([limit], |row| row.get(0))
         .unwrap()
@@ -218,7 +238,10 @@ pub fn delete_text(tx: &Transaction, id: u64) -> Result<()> {
 }
 
 pub fn delete_texts_before_time(tx: &Transaction, time: u64) -> Result<usize> {
-    let count = tx.execute("DELETE FROM text WHERE create_time < ?", params![time])?;
+    let count = tx.execute(
+        "DELETE FROM text WHERE create_time < ? AND pin = 0",
+        params![time],
+    )?;
     Ok(count)
 }
 

@@ -3,6 +3,7 @@ mod cb;
 mod config;
 mod delete;
 mod get;
+mod pin;
 mod put;
 mod read;
 mod revision;
@@ -117,6 +118,7 @@ pub enum Commands {
     Config(config::ShowConfigArgs),
     Delete(delete::DeleteArgs),
     Get(get::GetArgs),
+    Pin(pin::PinArgs),
     Put(put::PutCommand),
     Read(read::ReadCommand),
     Revision(revision::RevisionArgs),
@@ -134,6 +136,7 @@ impl RunCommand for App {
             Commands::Config(args) => args.run().await,
             Commands::Delete(args) => args.run().await,
             Commands::Get(args) => args.run().await,
+            Commands::Pin(args) => args.run().await,
             Commands::Put(args) => args.run().await,
             Commands::Read(args) => args.run().await,
             Commands::Revision(args) => args.run().await,

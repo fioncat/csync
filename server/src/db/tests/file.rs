@@ -51,9 +51,9 @@ pub fn run_file_tests(db: &Database) {
             assert!(result.is_err());
         }
 
-        assert_eq!(tx.count_files(None).unwrap(), files.len());
-        assert_eq!(tx.count_files(Some("Alice")).unwrap(), files.len());
-        assert_eq!(tx.count_files(Some("Bob")).unwrap(), 0);
+        assert_eq!(tx.count_files(None, true).unwrap(), files.len());
+        assert_eq!(tx.count_files(Some("Alice"), true).unwrap(), files.len());
+        assert_eq!(tx.count_files(Some("Bob"), true).unwrap(), 0);
 
         Ok(())
     })
@@ -74,6 +74,7 @@ pub fn run_file_tests(db: &Database) {
                 name: "new_file_bob".to_string(),
                 data: "New file from Bob".as_bytes().to_vec(),
                 mode: 0o666,
+                pin: false,
                 hash: "hash".to_string(),
                 owner: "Bob".to_string(),
                 size: 5,
@@ -268,7 +269,7 @@ pub fn run_file_tests(db: &Database) {
     .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let count = tx.count_files(None).unwrap();
+        let count = tx.count_files(None, true).unwrap();
         let deleted = tx.delete_files_before_time(now).unwrap();
         assert_eq!(deleted, count - 1);
         Ok(())
@@ -276,7 +277,7 @@ pub fn run_file_tests(db: &Database) {
     .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let count = tx.count_files(None).unwrap();
+        let count = tx.count_files(None, true).unwrap();
         assert_eq!(count, 1);
         let files = tx.list_files(Query::default()).unwrap();
         assert_eq!(files.len(), 1);
@@ -297,6 +298,7 @@ pub fn mock_file(name: &str, content: &str, mode: u32) -> FileRecord {
         hash,
         mode,
         size,
+        pin: false,
         owner: "Alice".to_string(),
         create_time: 0,
     }

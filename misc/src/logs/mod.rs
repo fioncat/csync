@@ -32,7 +32,7 @@ pub fn init_logger(dir: &Path, name: &str, cfg: &LogConfig) -> Result<()> {
 
             Config::builder()
                 .appender(Appender::builder().build("stderr", Box::new(stderr)))
-                .build(Root::builder().appender("stderr").build(LevelFilter::Info))?
+                .build(Root::builder().appender("stderr").build(level_filter))?
         }
         LogName::File => {
             let path = dir.join(format!("{name}.log"));
@@ -54,7 +54,7 @@ pub fn init_logger(dir: &Path, name: &str, cfg: &LogConfig) -> Result<()> {
 
             Config::builder()
                 .appender(Appender::builder().build("file", Box::new(file_appender)))
-                .build(Root::builder().appender("file").build(LevelFilter::Info))?
+                .build(Root::builder().appender("file").build(level_filter))?
         }
     };
 

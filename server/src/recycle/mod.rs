@@ -127,9 +127,9 @@ impl RecycleResource {
 
     fn count(&self, tx: &dyn Transaction) -> Result<usize> {
         match self {
-            Self::Text(_) => tx.count_texts(None),
-            Self::Image(_) => tx.count_images(None),
-            Self::File(_) => tx.count_files(None),
+            Self::Text(_) => tx.count_texts(None, false),
+            Self::Image(_) => tx.count_images(None, false),
+            Self::File(_) => tx.count_files(None, false),
         }
     }
 

@@ -57,9 +57,9 @@ pub fn run_text_tests(db: &Database) {
             assert!(result.is_err());
         }
 
-        assert_eq!(tx.count_texts(None).unwrap(), texts.len());
-        assert_eq!(tx.count_texts(Some("Alice")).unwrap(), texts.len());
-        assert_eq!(tx.count_texts(Some("Bob")).unwrap(), 0);
+        assert_eq!(tx.count_texts(None, true).unwrap(), texts.len());
+        assert_eq!(tx.count_texts(Some("Alice"), true).unwrap(), texts.len());
+        assert_eq!(tx.count_texts(Some("Bob"), true).unwrap(), 0);
 
         Ok(())
     })
@@ -79,6 +79,7 @@ pub fn run_text_tests(db: &Database) {
                 hash: "hash".to_string(),
                 owner: "Bob".to_string(),
                 size: 5,
+                pin: false,
                 create_time: 0,
             })
         })
@@ -136,8 +137,10 @@ pub fn run_text_tests(db: &Database) {
         assert_eq!(texts[1], all_texts[all_texts.len() - 1]);
 
         // Search by owner
-        let mut query = Query::default();
-        query.search = Some("lice".to_string());
+        let mut query = Query {
+            search: Some("lice".to_string()),
+            ..Default::default()
+        };
         let texts = tx.list_texts(query.clone(), false).unwrap();
         assert!(!texts.is_empty());
         for text in texts.iter() {
@@ -150,8 +153,10 @@ pub fn run_text_tests(db: &Database) {
         assert_eq!(texts.len(), 0);
 
         let target_text = texts_map.values().next().unwrap();
-        let mut query = Query::default();
-        query.hash = Some(target_text.hash.clone());
+        let query = Query {
+            hash: Some(target_text.hash.clone()),
+            ..Default::default()
+        };
         let texts = tx.list_texts(query.clone(), false).unwrap();
         assert_eq!(texts.len(), 1);
         assert_eq!(texts[0], target_text.clone());
@@ -177,8 +182,10 @@ pub fn run_text_tests(db: &Database) {
         .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let mut query = Query::default();
-        query.since = Some(start);
+        let query = Query {
+            since: Some(start),
+            ..Default::default()
+        };
 
         let texts = tx.list_texts(query.clone(), false).unwrap();
         assert_eq!(texts.len(), 1);
@@ -198,9 +205,11 @@ pub fn run_text_tests(db: &Database) {
     let end = current_timestamp();
 
     db.with_transaction(|tx, _cache| {
-        let mut query = Query::default();
-        query.since = Some(start);
-        query.until = Some(end);
+        let query = Query {
+            since: Some(start),
+            until: Some(end),
+            ..Default::default()
+        };
         let texts = tx.list_texts(query.clone(), false).unwrap();
         assert_eq!(texts.len(), 1);
         assert_eq!(texts[0], range_result);
@@ -210,8 +219,10 @@ pub fn run_text_tests(db: &Database) {
 
     db.with_transaction(|tx, _cache| {
         // Query texts before creating since and until mocked.
-        let mut query = Query::default();
-        query.until = Some(test_time_start);
+        let query = Query {
+            until: Some(test_time_start),
+            ..Default::default()
+        };
         let texts = tx.list_texts(query.clone(), false).unwrap();
         assert_eq!(texts.len(), texts_map.len());
         Ok(())
@@ -259,7 +270,7 @@ pub fn run_text_tests(db: &Database) {
     .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let count = tx.count_texts(None).unwrap();
+        let count = tx.count_texts(None, true).unwrap();
         let deleted = tx.delete_texts_before_time(now).unwrap();
         assert_eq!(deleted, count - 1);
         Ok(())
@@ -267,7 +278,7 @@ pub fn run_text_tests(db: &Database) {
     .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let count = tx.count_texts(None).unwrap();
+        let count = tx.count_texts(None, true).unwrap();
         assert_eq!(count, 1);
         let texts = tx.list_texts(Query::default(), false).unwrap();
         assert_eq!(texts.len(), 1);
@@ -289,6 +300,7 @@ fn mock_text(text: &str) -> TextRecord {
         hash,
         size: text.len() as u64,
         owner: "Alice".to_string(),
+        pin: false,
         create_time: 0,
     }
 }

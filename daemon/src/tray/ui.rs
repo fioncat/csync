@@ -158,7 +158,15 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         let key = format!("text_{}", text.id);
         let value = text.text;
 
-        append_resource_menu(&app, &menu, key, value, "Text", api.get_text_action())?;
+        append_resource_menu(
+            &app,
+            &menu,
+            key,
+            value,
+            "Text",
+            api.get_text_action(),
+            text.pin,
+        )?;
     }
 
     menu.append(&sep)?;
@@ -172,7 +180,15 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         let key = format!("image_{}", image.id);
         let value = format!("<{}>", image.size);
 
-        append_resource_menu(&app, &menu, key, value, "Image", api.get_image_action())?;
+        append_resource_menu(
+            &app,
+            &menu,
+            key,
+            value,
+            "Image",
+            api.get_image_action(),
+            image.pin,
+        )?;
     }
 
     menu.append(&sep)?;
@@ -186,7 +202,15 @@ fn setup_menu(app: AppHandle, data: MenuData, api: Arc<ApiHandler>) -> Result<()
         let key = format!("file_{}", file.id);
         let value = format!("<{}, {}>", file.name, file.size);
 
-        append_resource_menu(&app, &menu, key, value, "File", api.get_file_action())?;
+        append_resource_menu(
+            &app,
+            &menu,
+            key,
+            value,
+            "File",
+            api.get_file_action(),
+            file.pin,
+        )?;
     }
 
     menu.append(&sep)?;
@@ -265,7 +289,9 @@ fn append_resource_menu(
     value: String,
     name: &str,
     action: TrayAction,
+    pin: bool,
 ) -> Result<()> {
+    let value = if pin { format!("⭐ {value}") } else { value };
     match action {
         TrayAction::Copy => {
             let key = format!("{key}_copy");
@@ -288,41 +314,42 @@ fn append_resource_menu(
             menu.append(&item)?;
         }
         TrayAction::None => {
-            let submenu = build_resource_submenu(app, key.clone(), value, name)?;
+            let submenu = Submenu::with_id(app, &key, value, true)?;
+
+            let copy_key = format!("{key}_copy");
+            let copy_item =
+                MenuItem::with_id(app, copy_key, format!("Copy {name}"), true, None::<&str>)?;
+
+            let open_key = format!("{key}_open");
+            let open_item =
+                MenuItem::with_id(app, open_key, format!("Open {name}"), true, None::<&str>)?;
+
+            let save_key = format!("{key}_save");
+            let save_item =
+                MenuItem::with_id(app, save_key, format!("Save {name}"), true, None::<&str>)?;
+
+            let delete_key = format!("{key}_delete");
+            let delete_item = MenuItem::with_id(
+                app,
+                delete_key,
+                format!("Delete {name}"),
+                true,
+                None::<&str>,
+            )?;
+
+            let pin_key = format!("{key}_pin");
+            let pin_value = if pin {
+                format!("Unpin {name}")
+            } else {
+                format!("Pin {name}")
+            };
+            let pin_item = MenuItem::with_id(app, pin_key, pin_value, true, None::<&str>)?;
+
+            submenu.append_items(&[&copy_item, &open_item, &save_item, &pin_item, &delete_item])?;
             menu.append(&submenu)?;
         }
     };
     Ok(())
-}
-
-fn build_resource_submenu(
-    app: &AppHandle,
-    key: String,
-    value: String,
-    name: &str,
-) -> Result<Submenu<Wry>> {
-    let submenu = Submenu::with_id(app, &key, value, true)?;
-
-    let copy_key = format!("{key}_copy");
-    let copy_item = MenuItem::with_id(app, copy_key, format!("Copy {name}"), true, None::<&str>)?;
-
-    let open_key = format!("{key}_open");
-    let open_item = MenuItem::with_id(app, open_key, format!("Open {name}"), true, None::<&str>)?;
-
-    let save_key = format!("{key}_save");
-    let save_item = MenuItem::with_id(app, save_key, format!("Save {name}"), true, None::<&str>)?;
-
-    let delete_key = format!("{key}_delete");
-    let delete_item = MenuItem::with_id(
-        app,
-        delete_key,
-        format!("Delete {name}"),
-        true,
-        None::<&str>,
-    )?;
-
-    submenu.append_items(&[&copy_item, &open_item, &save_item, &delete_item])?;
-    Ok(submenu)
 }
 
 fn build_resource_action_submenu(
@@ -525,6 +552,12 @@ async fn handle_select(app: AppHandle, id: &str, api: Arc<ApiHandler>) -> Result
                 }
             }
         }
+        "pin" => match kind {
+            "text" => api.update_text_pin(id).await?,
+            "image" => api.update_image_pin(id).await?,
+            "file" => api.update_file_pin(id).await?,
+            _ => unreachable!(),
+        },
         "delete" => match kind {
             "text" => api.delete_text(id).await?,
             "image" => api.delete_image(id).await?,

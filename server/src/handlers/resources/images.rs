@@ -3,7 +3,7 @@ use std::sync::Arc;
 use csync_misc::secret::aes::AesSecret;
 use csync_misc::secret::Secret;
 use csync_misc::types::image::{Image, ENABLE_SECRET};
-use csync_misc::types::request::Query;
+use csync_misc::types::request::{PatchResource, Query};
 use log::error;
 use sha2::{Digest, Sha256};
 
@@ -58,6 +58,7 @@ impl ResourceHandler for ImagesHandler {
             data,
             hash,
             size,
+            pin: false,
             owner: user.name,
             create_time: 0,
         };
@@ -90,6 +91,38 @@ impl ResourceHandler for ImagesHandler {
         }
     }
 
+    fn patch(&self, id: u64, patch: PatchResource, user: AuthnUserInfo) -> Response {
+        let query_owner = user.get_query_owner();
+        let result = if patch.pin {
+            self.db.with_transaction(|tx, cache| {
+                if !tx.is_image_exists(id, query_owner)? {
+                    return Ok(false);
+                }
+                let image = tx.get_image(id, query_owner, true)?;
+                let update = !image.pin;
+                tx.update_image_pin(id, update)?;
+                cache.clear_image()?;
+                Ok(true)
+            })
+        } else {
+            Ok(false)
+        };
+
+        match result {
+            Ok(ok) => {
+                if ok {
+                    Response::ok()
+                } else {
+                    Response::not_found()
+                }
+            }
+            Err(e) => {
+                error!("Failed to patch image: {:#}", e);
+                Response::error(response::DATABASE_ERROR)
+            }
+        }
+    }
+
     fn list(&self, query: Query, _json: bool, _user: AuthnUserInfo) -> Response {
         let result = self.db.with_transaction(|tx, _cache| {
             let images = tx.list_images(query)?;
@@ -117,7 +150,7 @@ impl ResourceHandler for ImagesHandler {
                 if let Some(image) = cache.get_latest_image(query_owner)? {
                     return Ok(Some(image));
                 }
-                if tx.count_images(query_owner)? == 0 {
+                if tx.count_images(query_owner, true)? == 0 {
                     return Ok(None);
                 }
                 let record = tx.get_latest_image(query_owner, json)?;
@@ -215,6 +248,7 @@ impl ImagesHandler {
             id: record.id,
             hash: record.hash,
             size: record.size,
+            pin: record.pin,
             owner: record.owner,
             create_time: record.create_time,
         }

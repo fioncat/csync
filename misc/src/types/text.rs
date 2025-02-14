@@ -23,6 +23,9 @@ pub struct Text {
     /// Text size in bytes
     pub size: u64,
 
+    /// Whether the text is pinned
+    pub pin: bool,
+
     /// Text owner
     pub owner: String,
 
@@ -39,8 +42,13 @@ impl TerminalDisplay for Text {
     }
 
     fn table_row(self) -> Vec<String> {
+        let id = if self.pin {
+            format!("* {}", self.id)
+        } else {
+            self.id.to_string()
+        };
         vec![
-            self.id.to_string(),
+            id,
             human_bytes(self.size),
             self.owner,
             format_since(self.create_time),
@@ -48,13 +56,14 @@ impl TerminalDisplay for Text {
     }
 
     fn csv_titles() -> Vec<&'static str> {
-        vec!["id", "size", "owner", "create"]
+        vec!["id", "size", "pin", "owner", "create"]
     }
 
     fn csv_row(self) -> HashMap<&'static str, String> {
         vec![
             ("id", self.id.to_string()),
             ("size", self.size.to_string()),
+            ("pin", self.pin.to_string()),
             ("owner", self.owner),
             ("create", self.create_time.to_string()),
         ]

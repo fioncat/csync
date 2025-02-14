@@ -63,6 +63,7 @@ fn test_text(cache: &dyn Cache) {
         content: "Hello".to_string(),
         hash: "hash".to_string(),
         size: 5,
+        pin: false,
         create_time: 0,
     };
     let bob_text = TextRecord {
@@ -71,6 +72,7 @@ fn test_text(cache: &dyn Cache) {
         content: "World".to_string(),
         hash: "hash".to_string(),
         size: 5,
+        pin: false,
         create_time: 0,
     };
     let charlie_text = TextRecord {
@@ -79,6 +81,7 @@ fn test_text(cache: &dyn Cache) {
         content: "Hello World".to_string(),
         hash: "hash".to_string(),
         size: 11,
+        pin: false,
         create_time: 0,
     };
 
@@ -127,6 +130,7 @@ fn test_image(cache: &dyn Cache) {
         data: "Hello".as_bytes().to_vec(),
         hash: "hash".to_string(),
         size: 5,
+        pin: false,
         create_time: 0,
     };
     let bob_image = ImageRecord {
@@ -135,6 +139,7 @@ fn test_image(cache: &dyn Cache) {
         data: "World".as_bytes().to_vec(),
         hash: "hash".to_string(),
         size: 5,
+        pin: false,
         create_time: 0,
     };
     let charlie_image = ImageRecord {
@@ -143,6 +148,7 @@ fn test_image(cache: &dyn Cache) {
         data: "Hello World".as_bytes().to_vec(),
         hash: "hash".to_string(),
         size: 11,
+        pin: false,
         create_time: 0,
     };
 
@@ -198,6 +204,7 @@ fn test_file(cache: &dyn Cache) {
         hash: "hash".to_string(),
         mode: 0o644,
         size: 5,
+        pin: false,
         create_time: 0,
     };
     let bob_file = FileRecord {
@@ -208,6 +215,7 @@ fn test_file(cache: &dyn Cache) {
         hash: "hash".to_string(),
         mode: 0o666,
         size: 5,
+        pin: false,
         create_time: 0,
     };
     let charlie_file = FileRecord {
@@ -218,6 +226,7 @@ fn test_file(cache: &dyn Cache) {
         hash: "hash".to_string(),
         mode: 0o777,
         size: 11,
+        pin: false,
         create_time: 0,
     };
 

@@ -57,9 +57,9 @@ pub fn run_image_tests(db: &Database) {
             assert!(result.is_err());
         }
 
-        assert_eq!(tx.count_images(None).unwrap(), images.len());
-        assert_eq!(tx.count_images(Some("Alice")).unwrap(), images.len());
-        assert_eq!(tx.count_images(Some("Bob")).unwrap(), 0);
+        assert_eq!(tx.count_images(None, true).unwrap(), images.len());
+        assert_eq!(tx.count_images(Some("Alice"), true).unwrap(), images.len());
+        assert_eq!(tx.count_images(Some("Bob"), true).unwrap(), 0);
 
         Ok(())
     })
@@ -79,6 +79,7 @@ pub fn run_image_tests(db: &Database) {
                 hash: "hash".to_string(),
                 owner: "Bob".to_string(),
                 size: 5,
+                pin: false,
                 create_time: 0,
             })
         })
@@ -257,7 +258,7 @@ pub fn run_image_tests(db: &Database) {
     .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let count = tx.count_images(None).unwrap();
+        let count = tx.count_images(None, true).unwrap();
         let deleted = tx.delete_images_before_time(now).unwrap();
         assert_eq!(deleted, count - 1);
         Ok(())
@@ -265,7 +266,7 @@ pub fn run_image_tests(db: &Database) {
     .unwrap();
 
     db.with_transaction(|tx, _cache| {
-        let count = tx.count_images(None).unwrap();
+        let count = tx.count_images(None, true).unwrap();
         assert_eq!(count, 1);
         let images = tx.list_images(Query::default()).unwrap();
         assert_eq!(images.len(), 1);
@@ -284,6 +285,7 @@ pub fn mock_image(data: &str) -> ImageRecord {
         data,
         hash,
         size,
+        pin: false,
         owner: "Alice".to_string(),
         create_time: 0,
     }

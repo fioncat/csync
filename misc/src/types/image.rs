@@ -23,6 +23,9 @@ pub struct Image {
     /// Image size
     pub size: u64,
 
+    /// Image pin status
+    pub pin: bool,
+
     /// Image owner
     pub owner: String,
 
@@ -36,8 +39,13 @@ impl TerminalDisplay for Image {
     }
 
     fn table_row(self) -> Vec<String> {
+        let id = if self.pin {
+            format!("* {}", self.id)
+        } else {
+            self.id.to_string()
+        };
         vec![
-            self.id.to_string(),
+            id,
             human_bytes(self.size),
             self.owner,
             format_since(self.create_time),
@@ -45,7 +53,7 @@ impl TerminalDisplay for Image {
     }
 
     fn csv_titles() -> Vec<&'static str> {
-        vec!["id", "hash", "size", "owner", "create"]
+        vec!["id", "hash", "size", "pin", "owner", "create"]
     }
 
     fn csv_row(self) -> HashMap<&'static str, String> {
@@ -53,6 +61,7 @@ impl TerminalDisplay for Image {
             ("id", self.id.to_string()),
             ("hash", self.hash),
             ("size", self.size.to_string()),
+            ("pin", self.pin.to_string()),
             ("owner", self.owner),
             ("create", self.create_time.to_string()),
         ]

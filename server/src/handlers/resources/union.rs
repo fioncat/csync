@@ -1,4 +1,4 @@
-use csync_misc::types::request::Query;
+use csync_misc::types::request::{PatchResource, Query};
 
 use crate::authn::AuthnUserInfo;
 use crate::response::Response;
@@ -26,6 +26,16 @@ impl ResourceHandler for UnionResourceHandler {
             UnionResourceHandler::Roles(handler) => handler.put(req, user),
             UnionResourceHandler::Texts(handler) => handler.put(req, user),
             UnionResourceHandler::Users(handler) => handler.put(req, user),
+        }
+    }
+
+    fn patch(&self, id: u64, patch: PatchResource, user: AuthnUserInfo) -> Response {
+        match self {
+            UnionResourceHandler::Files(handler) => handler.patch(id, patch, user),
+            UnionResourceHandler::Images(handler) => handler.patch(id, patch, user),
+            UnionResourceHandler::Roles(handler) => handler.patch(id, patch, user),
+            UnionResourceHandler::Texts(handler) => handler.patch(id, patch, user),
+            UnionResourceHandler::Users(handler) => handler.patch(id, patch, user),
         }
     }
 

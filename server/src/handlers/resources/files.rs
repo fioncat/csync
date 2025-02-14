@@ -1,7 +1,7 @@
 use csync_misc::secret::aes::AesSecret;
 use csync_misc::secret::Secret;
 use csync_misc::types::file::FileInfo;
-use csync_misc::types::request::Query;
+use csync_misc::types::request::{PatchResource, Query};
 use log::error;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -72,6 +72,7 @@ impl ResourceHandler for FilesHandler {
             hash,
             size,
             mode: info.mode,
+            pin: false,
             owner: user.name,
             create_time: 0,
         };
@@ -89,6 +90,38 @@ impl ResourceHandler for FilesHandler {
             }
             Err(e) => {
                 error!("Failed to create or update file: {:#}", e);
+                Response::error(response::DATABASE_ERROR)
+            }
+        }
+    }
+
+    fn patch(&self, id: u64, patch: PatchResource, user: AuthnUserInfo) -> Response {
+        let query_owner = user.get_query_owner();
+        let result = if patch.pin {
+            self.db.with_transaction(|tx, cache| {
+                if !tx.is_file_exists(id, query_owner)? {
+                    return Ok(false);
+                }
+                let file = tx.get_file(id, query_owner, true)?;
+                let update = !file.pin;
+                tx.update_file_pin(id, update)?;
+                cache.clear_file()?;
+                Ok(true)
+            })
+        } else {
+            Ok(false)
+        };
+
+        match result {
+            Ok(ok) => {
+                if ok {
+                    Response::ok()
+                } else {
+                    Response::not_found()
+                }
+            }
+            Err(e) => {
+                error!("Failed to patch file: {:#}", e);
                 Response::error(response::DATABASE_ERROR)
             }
         }
@@ -121,7 +154,7 @@ impl ResourceHandler for FilesHandler {
                 if let Some(file) = cache.get_latest_file(query_owner)? {
                     return Ok(Some(file));
                 }
-                if tx.count_files(query_owner)? == 0 {
+                if tx.count_files(query_owner, true)? == 0 {
                     return Ok(None);
                 }
                 let record = tx.get_latest_file(query_owner, json)?;
@@ -174,6 +207,7 @@ impl ResourceHandler for FilesHandler {
             hash,
             size,
             mode,
+            pin,
             owner,
             create_time,
         } = record;
@@ -184,6 +218,7 @@ impl ResourceHandler for FilesHandler {
             hash,
             size,
             mode,
+            pin,
             owner,
             create_time,
             secret: false,
@@ -251,6 +286,7 @@ impl FilesHandler {
             hash: record.hash,
             size: record.size,
             mode: record.mode,
+            pin: record.pin,
             owner: record.owner,
             create_time: record.create_time,
             secret: false,

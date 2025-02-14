@@ -76,6 +76,10 @@ impl Dispatcher {
                 updated = true;
                 handler.put(PutRequest::Binary(metadata, data), user)
             }
+            ResourceRequest::Patch(id, patch) => {
+                updated = true;
+                handler.patch(id, patch, user)
+            }
             ResourceRequest::List(mut query, json) => {
                 user.set_query_owner(&mut query);
                 handler.list(query, json, user)

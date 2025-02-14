@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use csync_misc::types::request::Query;
+use csync_misc::types::request::{PatchResource, Query};
 use csync_misc::types::user::Role;
 use log::error;
 
@@ -63,6 +63,10 @@ impl ResourceHandler for RolesHandler {
                 Response::error(response::DATABASE_ERROR)
             }
         }
+    }
+
+    fn patch(&self, _id: u64, _patch: PatchResource, _user: AuthnUserInfo) -> Response {
+        Response::method_not_allowed()
     }
 
     fn list(&self, _query: Query, _json: bool, _user: AuthnUserInfo) -> Response {
