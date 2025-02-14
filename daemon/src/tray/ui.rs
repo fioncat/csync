@@ -6,6 +6,7 @@ use std::{fs, io};
 use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
+use tauri::image::Image;
 use tauri::menu::{
     AboutMetadataBuilder, CheckMenuItem, IconMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
@@ -268,8 +269,8 @@ fn append_resource_menu(
 ) -> Result<()> {
     match action {
         TrayAction::Copy => {
-            let icon = app.default_window_icon().cloned().unwrap();
-            let item = IconMenuItem::with_id(app, key, value, true, Some(icon), None::<&str>)?;
+            let star_icon = Image::from_bytes(include_bytes!("../../icons/star.png"))?;
+            let item = IconMenuItem::with_id(app, key, value, true, Some(star_icon), None::<&str>)?;
             // let key = format!("{key}_copy");
             // let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
             menu.append(&item)?;
