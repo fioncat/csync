@@ -118,13 +118,13 @@ pub enum Commands {
     Config(config::ShowConfigArgs),
     Delete(delete::DeleteArgs),
     Get(get::GetArgs),
+    Pin(pin::PinArgs),
     Put(put::PutCommand),
     Read(read::ReadCommand),
     Revision(revision::RevisionArgs),
     Select(select::SelectArgs),
     Version(version::VersionArgs),
     Whoami(whoami::WhoamiArgs),
-    Pin(pin::PinArgs),
 }
 
 #[async_trait]
@@ -136,13 +136,13 @@ impl RunCommand for App {
             Commands::Config(args) => args.run().await,
             Commands::Delete(args) => args.run().await,
             Commands::Get(args) => args.run().await,
+            Commands::Pin(args) => args.run().await,
             Commands::Put(args) => args.run().await,
             Commands::Read(args) => args.run().await,
             Commands::Revision(args) => args.run().await,
             Commands::Select(args) => args.run().await,
             Commands::Version(args) => args.run().await,
             Commands::Whoami(args) => args.run().await,
-            Commands::Pin(args) => args.run().await,
         }
     }
 }
