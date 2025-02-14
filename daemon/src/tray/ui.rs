@@ -291,7 +291,12 @@ fn append_resource_menu(
     action: TrayAction,
     pin: bool,
 ) -> Result<()> {
+    // FIXME: We are currently limited to using emojis as Tauri's Submenu does not support
+    // icon settings. This should be updated to use icons when Submenu icon support becomes
+    // available, which will provide better compatibility.
+    // See: <https://github.com/fioncat/csync/pull/46>
     let value = if pin { format!("⭐ {value}") } else { value };
+
     match action {
         TrayAction::Copy => {
             let key = format!("{key}_copy");
