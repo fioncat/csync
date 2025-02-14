@@ -14,7 +14,7 @@ pub struct PinArgs {
     /// Type of resource to display
     pub resource: ResourceType,
 
-    /// The id to udpate pin flag
+    /// The id to update pin flag
     pub id: u64,
 
     #[command(flatten)]
