@@ -7,7 +7,7 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Local};
 use log::{error, info};
 use tauri::menu::{
-    AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
+    AboutMetadataBuilder, CheckMenuItem, IconMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu,
 };
 use tauri::{AppHandle, WindowEvent, Wry};
 use tauri_plugin_dialog::DialogExt;
@@ -268,8 +268,10 @@ fn append_resource_menu(
 ) -> Result<()> {
     match action {
         TrayAction::Copy => {
-            let key = format!("{key}_copy");
-            let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
+            let icon = app.default_window_icon().cloned().unwrap();
+            let item = IconMenuItem::with_id(app, key, value, true, Some(icon), None::<&str>)?;
+            // let key = format!("{key}_copy");
+            // let item = MenuItem::with_id(app, key, value, true, None::<&str>)?;
             menu.append(&item)?;
         }
         TrayAction::Open => {
