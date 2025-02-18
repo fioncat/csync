@@ -30,7 +30,11 @@ pub struct GlobalLock {
 
 impl GlobalLock {
     /// Error code returned by the OS when a file lock cannot be acquired
+    #[cfg(target_os = "linux")]
     const RESOURCE_TEMPORARILY_UNAVAILABLE_CODE: i32 = 11;
+
+    #[cfg(target_os = "macos")]
+    const RESOURCE_TEMPORARILY_UNAVAILABLE_CODE: i32 = 35;
 
     pub fn try_acquire(path: PathBuf) -> Result<Option<Self>> {
         let lock_opts = match fs::metadata(&path) {
