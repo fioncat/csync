@@ -9,11 +9,14 @@ anyhow = "1.0"
 async-trait = "0.1"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
+console = "0.15"
 csync_misc = { path = "../misc" }
+daemonize = "0.5"
 log = "0.4"
 serde = {version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
+sysinfo = "0.33"
 tauri = { version = "2.2", features = ["tray-icon", "image-ico"] }
 tauri-plugin-dialog = "2.2"
 tauri-plugin-opener = "2.2"
