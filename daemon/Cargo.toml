@@ -9,6 +9,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
+console = "0.15"
 csync_misc = { path = "../misc" }
 daemonize = "0.5"
 log = "0.4"

@@ -14,6 +14,7 @@ use csync_misc::client::share::build_share_client;
 use csync_misc::config::{CommonConfig, ConfigArgs, PathSet};
 use csync_misc::display::display_json;
 use csync_misc::filelock::GlobalLock;
+use daemonize::{Daemonize, DaemonizeAction};
 use log::{error, info};
 use serde::Serialize;
 use server::DaemonServer;
@@ -25,6 +26,9 @@ use tray::ui::run_tray_ui;
 #[derive(Parser, Debug)]
 #[command(author, version = env!("CSYNC_VERSION"), about)]
 struct DaemonArgs {
+    /// Daemon action.
+    pub action: Option<DaemonizeAction>,
+
     /// Print daemon and client configuration data (JSON) and exit.
     #[arg(long)]
     pub print_config: bool,
@@ -50,6 +54,13 @@ fn blocking_main(args: DaemonArgs) -> Result<()> {
         });
     }
 
+    if let Some(action) = args.action {
+        let daemon = Daemonize::new(&ps)?;
+        if !daemon.handle(action)? {
+            return Ok(());
+        }
+    }
+
     tokio_main(ps, client_cfg, daemon_cfg);
 }
 
@@ -70,7 +81,7 @@ fn tokio_main(ps: PathSet, client_cfg: ClientConfig, daemon_cfg: DaemonConfig) -
                 info!("Daemon exited successfully");
             }
             Err(e) => {
-                error!("Daemon error: {:#}", e);
+                eprintln!("Daemon error: {:#}", e);
                 process::exit(1);
             }
         }

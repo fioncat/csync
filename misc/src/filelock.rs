@@ -32,29 +32,21 @@ impl GlobalLock {
     /// Error code returned by the OS when a file lock cannot be acquired
     const RESOURCE_TEMPORARILY_UNAVAILABLE_CODE: i32 = 11;
 
-    /// Attempts to acquire a global lock by creating and locking a file at the specified path.
-    ///
-    /// # Arguments
-    /// * `path` - Path where the lock file should be created
-    ///
-    /// # Returns
-    /// * `Ok(GlobalLock)` - If the lock was successfully acquired
-    /// * `Err` - If the lock could not be acquired (e.g., another process holds the lock)
-    ///
-    /// # Errors
-    /// Returns error if:
-    /// * Another process already holds the lock
-    /// * File operations fail (creation, writing, etc.)
-    pub fn acquire(path: PathBuf) -> Result<GlobalLock> {
-        let lock_opts = file_lock::FileOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true);
+    pub fn try_acquire(path: PathBuf) -> Result<Option<Self>> {
+        let lock_opts = match fs::metadata(&path) {
+            Ok(_) => file_lock::FileOptions::new().write(true).read(true),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => file_lock::FileOptions::new()
+                .write(true)
+                .read(true)
+                .create_new(true)
+                .truncate(true),
+            Err(e) => return Err(e).context("get lock file metadata error"),
+        };
         let mut file_lock = match file_lock::FileLock::lock(&path, false, lock_opts) {
             Ok(lock) => lock,
             Err(err) => match err.raw_os_error() {
                 Some(code) if code == Self::RESOURCE_TEMPORARILY_UNAVAILABLE_CODE => {
-                    bail!("acquire file lock error, there has another process running, please stop it first");
+                    return Ok(None);
                 }
                 _ => {
                     return Err(err).context("acquire file lock error");
@@ -76,10 +68,18 @@ impl GlobalLock {
             .with_context(|| format!("flush pid to lock file {}", path.display()))?;
 
         // The file lock will be released after file_lock dropped.
-        Ok(GlobalLock {
+        Ok(Some(GlobalLock {
             path,
             _file_lock: file_lock,
-        })
+        }))
+    }
+
+    pub fn acquire(path: PathBuf) -> Result<Self> {
+        match Self::try_acquire(path) {
+            Ok(Some(lock)) => Ok(lock),
+            Ok(None) => bail!("another instance is already running, please stop it first"),
+            Err(err) => Err(err),
+        }
     }
 }
 

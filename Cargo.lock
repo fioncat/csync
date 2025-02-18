@@ -1208,6 +1208,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "clap",
+ "console",
  "csync_build",
  "csync_misc",
  "daemonize",
