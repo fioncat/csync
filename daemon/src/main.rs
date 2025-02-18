@@ -1,4 +1,5 @@
 mod config;
+mod daemonize;
 mod server;
 mod sync;
 mod tray;
@@ -10,7 +11,7 @@ use clap::Parser;
 use config::DaemonConfig;
 use csync_misc::client::config::ClientConfig;
 use csync_misc::client::share::build_share_client;
-use csync_misc::config::{CommonConfig, ConfigArgs};
+use csync_misc::config::{CommonConfig, ConfigArgs, PathSet};
 use csync_misc::display::display_json;
 use csync_misc::filelock::GlobalLock;
 use log::{error, info};
@@ -38,18 +39,46 @@ struct ConfigSet {
     daemon: DaemonConfig,
 }
 
-async fn run(args: DaemonArgs) -> Result<()> {
+fn blocking_main(args: DaemonArgs) -> Result<()> {
     let ps = args.config.build_path_set()?;
     let client_cfg: ClientConfig = ps.load_config("client", ClientConfig::default)?;
     let daemon_cfg = ps.load_config("daemon", DaemonConfig::default)?;
     if args.print_config {
-        display_json(&ConfigSet {
+        return display_json(&ConfigSet {
             client: client_cfg,
             daemon: daemon_cfg,
-        })?;
-        process::exit(0);
+        });
     }
 
+    tokio_main(ps, client_cfg, daemon_cfg);
+}
+
+fn tokio_main(ps: PathSet, client_cfg: ClientConfig, daemon_cfg: DaemonConfig) -> ! {
+    let rt = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Failed to create tokio runtime: {:#}", e);
+            process::exit(2);
+        }
+    };
+    rt.block_on(async move {
+        match run(ps, client_cfg, daemon_cfg).await {
+            Ok(_) => {
+                info!("Daemon exited successfully");
+            }
+            Err(e) => {
+                error!("Daemon error: {:#}", e);
+                process::exit(1);
+            }
+        }
+    });
+    process::exit(0);
+}
+
+async fn run(ps: PathSet, client_cfg: ClientConfig, daemon_cfg: DaemonConfig) -> Result<()> {
     ps.init_logger("daemon", &daemon_cfg.log)?;
 
     let lock_path = ps.data_path.join("daemon.lock");
@@ -92,14 +121,13 @@ async fn run(args: DaemonArgs) -> Result<()> {
     Ok(())
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args = DaemonArgs::parse();
 
-    match run(args).await {
-        Ok(_) => info!("Daemon exited successfully"),
+    match blocking_main(args) {
+        Ok(_) => {}
         Err(e) => {
-            error!("Failed to run daemon: {:#}", e);
+            eprintln!("Error: {:#}", e);
             process::exit(1);
         }
     }
