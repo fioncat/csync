@@ -1,8 +1,15 @@
+use std::path::PathBuf;
+
 use clap::ValueEnum;
 use daemonize::Daemonize as RawDaemonize;
 use sysinfo::{Pid, System};
 
 pub struct Daemonize {
+    stdout_path: PathBuf,
+    stderr_path: PathBuf,
+
+    pid_path: PathBuf,
+
     pid: Option<u32>,
 }
 
@@ -12,6 +19,9 @@ pub enum DaemonizeAction {
     Restart,
     Status,
     Stop,
+    Stdout,
+    Stderr,
+    Logs,
 }
 
 fn is_process_running(pid: u32) -> bool {
