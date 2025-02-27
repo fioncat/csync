@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use chrono::Local;
-use log::info;
+use log::{info, warn};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
@@ -60,7 +60,7 @@ impl ShareManager {
             refresh_intv: interval(Duration::from_secs(1)),
         };
 
-        mgr.refresh_token().await?;
+        mgr.refresh_token_inner().await?;
 
         tokio::spawn(async move {
             mgr.main_loop().await;
@@ -73,9 +73,7 @@ impl ShareManager {
         loop {
             select! {
                 _ = self.refresh_intv.tick() => {
-                    if let Err(e) = self.refresh_token().await {
-                        info!("Failed to refresh share client token: {:#}", e);
-                    }
+                    self.refresh_token().await;
                 }
                 Some(resp) = self.req_rx.recv() => {
                     let client = self.client.clone();
@@ -85,7 +83,15 @@ impl ShareManager {
         }
     }
 
-    async fn refresh_token(&mut self) -> Result<()> {
+    async fn refresh_token(&mut self) {
+        if let Err(e) = self.refresh_token_inner().await {
+            // When refreshing failed, we need to retry after a short time
+            self.refresh_intv.reset_after(Duration::from_secs(5));
+            warn!("Failed to refresh share client token: {:#}", e);
+        }
+    }
+
+    async fn refresh_token_inner(&mut self) -> Result<()> {
         info!("Refreshing share client token");
 
         let resp = self.client.login(&self.user, &self.password).await?;
