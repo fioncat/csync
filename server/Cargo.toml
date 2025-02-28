@@ -1,0 +1,4 @@
+[package]
+name = "csync-server"
+edition = "2021"
+description = "Csync server"

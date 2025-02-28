@@ -1,0 +1,5 @@
+[package]
+name = "csyncd"
+edition = "2021"
+description = "Csync daemon"
+authors = ["fioncat"]

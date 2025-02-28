@@ -1,0 +1,3 @@
+[package]
+name = "csync_misc"
+edition = "2021"

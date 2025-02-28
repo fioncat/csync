@@ -1,0 +1,7 @@
+[package]
+name = "csynctl"
+edition = "2021"
+description = "Csync control"
+
+[build-dependencies]
+csync_build = { path = "../build" }
