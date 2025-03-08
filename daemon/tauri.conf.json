@@ -1,0 +1,14 @@
+{
+  "plugins": {},
+  "identifier": "com.tauri-app.app",
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    }
+  }
+}

@@ -1,0 +1,15 @@
+meta {
+  name: token
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{server}}/v1/token
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}

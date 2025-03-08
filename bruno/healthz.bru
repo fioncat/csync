@@ -1,0 +1,15 @@
+meta {
+  name: healthz
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{server}}/v1/healthz
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}

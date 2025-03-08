@@ -1,0 +1,27 @@
+meta {
+  name: get_blob
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{server}}/v1/blob?id=2
+  body: none
+  auth: none
+}
+
+params:query {
+  id: 2
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+  X-Blob-Sha256: a1028f793b0aae9c51fa83e39975b254d78947620868f09e4a648e73486a623c
+  X-Blob-Type: file
+  X-File-Name: test_file
+  X-File-Mode: 33188
+}
+
+body:text {
+  Test File
+}

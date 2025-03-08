@@ -1,0 +1,28 @@
+meta {
+  name: patch_blob_pin
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{server}}/v1/blob?id=3&pin=false
+  body: none
+  auth: none
+}
+
+params:query {
+  id: 3
+  pin: false
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+  X-Blob-Sha256: a1028f793b0aae9c51fa83e39975b254d78947620868f09e4a648e73486a623c
+  X-Blob-Type: file
+  X-File-Name: test_file
+  X-File-Mode: 33188
+}
+
+body:text {
+  Test File
+}

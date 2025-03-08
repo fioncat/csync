@@ -1,0 +1,19 @@
+meta {
+  name: get_metadata
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{server}}/v1/metadata?id=3
+  body: none
+  auth: none
+}
+
+params:query {
+  id: 3
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}

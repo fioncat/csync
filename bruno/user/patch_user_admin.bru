@@ -1,0 +1,20 @@
+meta {
+  name: patch_user_admin
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{server}}/v1/user?name=test&admin=true
+  body: none
+  auth: none
+}
+
+params:query {
+  name: test
+  admin: true
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}

@@ -1,0 +1,20 @@
+meta {
+  name: get_metadatas
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{server}}/v1/metadata?offset=0&limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  offset: 0
+  limit: 20
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}
