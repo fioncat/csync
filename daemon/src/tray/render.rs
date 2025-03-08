@@ -86,7 +86,7 @@ impl Renderer {
             // FIXME: We are currently limited to using emojis as Tauri's Submenu does not
             // support icon settings. This should be updated to use icons when Submenu icon
             // support becomes available, which will provide better compatibility.
-            // See: <https://github.com/fioncat/csync/pull/46>
+            // See: <https://github.com/tauri-apps/tauri/issues/11796>
             let summary = if item.pin {
                 Cow::Owned(format!("⭐ {}", item.summary))
             } else {
