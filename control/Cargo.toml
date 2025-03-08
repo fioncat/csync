@@ -1,0 +1,15 @@
+[package]
+name = "csynctl"
+edition = "2021"
+description = "Csync control"
+
+[dependencies]
+anyhow = "^1"
+async-trait = "^0"
+clap = { version = "^4", features = ["derive"] }
+csync_misc = { path = "../misc" }
+serde = {version = "^1", features = ["derive"] }
+tokio = { version = "^1", features = ["full"] }
+
+[build-dependencies]
+csync_build = { path = "../build" }

@@ -1,0 +1,20 @@
+meta {
+  name: get_users
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{server}}/v1/user?offset=0&limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  offset: 0
+  limit: 20
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}

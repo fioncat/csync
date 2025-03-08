@@ -1,0 +1,19 @@
+meta {
+  name: delete_user
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{server}}/v1/user?name=test
+  body: none
+  auth: none
+}
+
+params:query {
+  name: test
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}

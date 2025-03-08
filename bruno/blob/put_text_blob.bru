@@ -1,0 +1,21 @@
+meta {
+  name: put_text_blob
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{server}}/v1/blob
+  body: text
+  auth: none
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+  X-Blob-Sha256: 22dca5472c7e6de258c511726ba115736711e29e1726382719607c59a08a2661
+  X-Blob-Type: text
+}
+
+body:text {
+  Test Text
+}

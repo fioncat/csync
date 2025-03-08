@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "build",
+    "control",
+    "daemon",
+    "misc",
+    "server",
+]
+
+[profile.release]
+lto = true
+strip = true
+incremental = false

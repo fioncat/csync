@@ -1,0 +1,25 @@
+meta {
+  name: put_image_blob
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{server}}/v1/blob
+  body: file
+  auth: none
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+  X-Blob-Sha256: c3093766d3e29b1e557e035fc2f9db641320ba9c84932a50b305cbb4fbb746e0
+  X-Blob-Type: image
+}
+
+body:text {
+  Test Image
+}
+
+body:file {
+  file: @file(test.png) @contentType(image/png)
+}

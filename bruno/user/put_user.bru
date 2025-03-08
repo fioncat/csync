@@ -1,0 +1,21 @@
+meta {
+  name: put_user
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{server}}/v1/user?name=test&password=!23$%dd&admin=false
+  body: none
+  auth: none
+}
+
+params:query {
+  name: test
+  password: !23$%dd
+  admin: false
+}
+
+headers {
+  Authorization: Basic {{user}}:{{password}}
+}
