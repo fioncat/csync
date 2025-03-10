@@ -53,11 +53,10 @@ impl BlobArgs {
             Some(ref file) => {
                 let path = PathBuf::from(file);
                 if self.upload_file {
-                    return Ok(Blob::read_from_file(&path)?);
+                    return Blob::read_from_file(&path);
                 }
 
-                let data = fs::read(&path)?;
-                data
+                fs::read(&path)?
             }
             None => self.read_stdin()?,
         };
