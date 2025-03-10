@@ -147,6 +147,7 @@ pub struct Event {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EventEstablished {
     pub ok: bool,
+    pub salt: String,
     pub message: Option<String>,
 }
 

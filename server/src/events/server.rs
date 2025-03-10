@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use csync_misc::api::metadata::EventEstablished;
+use csync_misc::code;
 use csync_misc::stream::cipher::Cipher;
 use csync_misc::stream::Stream;
 use log::{debug, error, info};
@@ -67,9 +68,10 @@ async fn handle_request(
     let user = stream.next_string().await?;
     let result = ctx.db.with_transaction(|tx| {
         if user == "admin" {
+            let password = ctx.cfg.admin_password.clone();
             return Ok(Some(UserPassword {
                 name: "admin".to_string(),
-                password: ctx.cfg.admin_password.clone(),
+                password: code::sha256(password),
                 ..Default::default()
             }));
         }
@@ -95,14 +97,16 @@ async fn handle_request(
         }
     };
 
-    let established = if user.is_some() {
+    let established = if let Some(ref user) = user {
         EventEstablished {
             ok: true,
+            salt: user.salt.clone(),
             message: None,
         }
     } else {
         EventEstablished {
             ok: false,
+            salt: String::new(),
             message: Some(failed_message.to_string()),
         }
     };

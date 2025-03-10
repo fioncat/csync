@@ -7,6 +7,7 @@ use tokio::net::{lookup_host, TcpStream};
 use tokio::sync::mpsc;
 
 use crate::api::metadata::{Event, EventEstablished};
+use crate::code;
 use crate::stream::cipher::Cipher;
 use crate::stream::Stream;
 
@@ -16,15 +17,13 @@ pub struct EventsChannel {
 }
 
 pub async fn subscribe(addr: String, username: String, password: String) -> Result<EventsChannel> {
-    let cipher = Cipher::new(password.into_bytes());
-
     let (notify_tx, notify_rx) = mpsc::channel(500);
     let (error_tx, error_rx) = mpsc::channel(100);
 
     let client = EventListener {
         addr,
         username,
-        cipher,
+        password,
         notify: notify_tx,
         states_tx: error_tx,
     };
@@ -42,7 +41,7 @@ struct EventListener {
     addr: String,
     notify: mpsc::Sender<Event>,
     username: String,
-    cipher: Cipher,
+    password: String,
     states_tx: mpsc::Sender<bool>,
 }
 
@@ -95,7 +94,11 @@ impl EventListener {
             );
         }
 
-        stream.set_cipher(self.cipher.clone());
+        let password = format!("{}{}", self.password, established.salt);
+        let password = code::sha256(password);
+        let cipher = Cipher::new(password.into_bytes());
+
+        stream.set_cipher(cipher);
 
         info!("Established events stream with server {}", self.addr);
         loop {
@@ -210,12 +213,14 @@ mod tests {
 
             let established = EventEstablished {
                 ok: true,
+                salt: String::new(),
                 message: None,
             };
             let data = serde_json::to_vec(&established).unwrap();
             stream.write(&data).await.unwrap();
 
-            let cipher = Cipher::new(password.as_bytes().to_vec());
+            let password = code::sha256(password);
+            let cipher = Cipher::new(password.into_bytes());
             stream.set_cipher(cipher);
 
             for event in server_events {
