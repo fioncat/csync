@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: csync-server
+  namespace: "{{ .Values.namespace }}"
+spec:
+  selector:
+    matchLabels:
+      app: csync-server
+  serviceName: "csync-server"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csync-server
+    spec:
+      containers:
+      - name: csync-server
+        image: "{{ .Values.image }}"
+        ports:
+        - containerPort: {{ .Values.port }}
+          name: http
+        volumeMounts:
+        - name: csync-data
+          mountPath: /var/lib/csync
+        - name: csync-config
+          mountPath: /etc/csync
+        - name: csync-pki
+          mountPath: /etc/csync/pki
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      volumes:
+      - name: csync-config
+        configMap:
+          name: csync-config
+      - name: csync-pki
+        secret:
+          secretName: csync-pki
+  volumeClaimTemplates:
+  - metadata:
+      name: csync-data
+    spec:
+      storageClassName: "{{ .Values.pvc.storageClass }}"
+      resources:
+        requests:
+          storage: "{{ .Values.pvc.size }}"
+      accessModes:
+        {{- toYaml .Values.pvc.accessModes | nindent 8 }}
