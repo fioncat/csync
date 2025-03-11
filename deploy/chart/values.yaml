@@ -5,6 +5,8 @@ image: "fioncat/csync:latest"
 port: 13577
 ssl: false
 
+admin_password: "default_admin_password@test_only"
+
 resources:
   requests:
     cpu: "500m"

@@ -7,4 +7,11 @@ data:
   server.toml: |
     bind = "0.0.0.0:{{ .Values.port }}"
     ssl = {{ .Values.ssl }}
+    admin_password = "{{ .Values.admin_password }}"
     {{- toToml .Values.config | nindent 4 }}
+
+  client.toml: |
+    server = "{{ ternary "https" "http" .Values.ssl }}://127.0.0.1:{{ .Values.port }}"
+    accept_invalid_certs = true
+    username = "admin"
+    password = "{{ .Values.admin_password }}"
