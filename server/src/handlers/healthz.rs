@@ -10,7 +10,7 @@ register_handlers!(get_healthz);
 async fn get_healthz(
     _req: EmptyRequest,
     _op: User,
-    _sc: &ServerContext,
+    _ctx: &ServerContext,
 ) -> Response<HealthResponse> {
     let now = Utc::now().timestamp() as u64;
     Response::with_data(HealthResponse {

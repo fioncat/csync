@@ -17,12 +17,12 @@ macro_rules! register_handlers {
             pub async fn [< $handler _handler >](
                 req: actix_web::HttpRequest,
                 body: Option<actix_web::web::Bytes>,
-                sc: actix_web::web::Data<std::sync::Arc<$crate::context::ServerContext>>,
+                ctx: actix_web::web::Data<std::sync::Arc<$crate::context::ServerContext>>,
             ) -> actix_web::HttpResponse {
                 let f = || async move {
-                    let user = $crate::auth_request!(sc.as_ref(), req);
+                    let user = $crate::auth_request!(ctx.as_ref(), req);
                     let req = $crate::parse_request!(req, body);
-                    $handler(req, user, sc.as_ref()).await
+                    $handler(req, user, ctx.as_ref()).await
                 };
                 let resp = f().await;
                 $crate::handlers::convert_response(resp)

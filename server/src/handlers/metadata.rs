@@ -11,14 +11,14 @@ register_handlers!(get_metadata, get_state);
 async fn get_metadata(
     mut req: GetMetadataRequest,
     op: User,
-    sc: &ServerContext,
+    ctx: &ServerContext,
 ) -> Response<ListResponse<Metadata>> {
     if !op.admin {
         req.owner = Some(op.name.clone());
     }
     debug!("Get metadata: {:?}", req);
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         let items = tx.get_metadatas(req.clone())?;
         let count = tx.count_metadatas(req)?;
         Ok(ListResponse {

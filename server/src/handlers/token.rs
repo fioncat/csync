@@ -8,10 +8,10 @@ use crate::register_handlers;
 
 register_handlers!(get_token);
 
-async fn get_token(_req: EmptyRequest, op: User, sc: &ServerContext) -> Response<TokenResponse> {
+async fn get_token(_req: EmptyRequest, op: User, ctx: &ServerContext) -> Response<TokenResponse> {
     debug!("Generate token for user: {:?}", op);
     let now = Utc::now().timestamp() as u64;
-    match sc.jwt_generator.generate_token(op, now) {
+    match ctx.jwt_generator.generate_token(op, now) {
         Ok(token) => {
             debug!("Token generated: {:?}", token);
             Response::with_data(token)

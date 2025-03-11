@@ -126,10 +126,10 @@ async fn patch_blob(req: PatchBlobRequest, op: User, ctx: &ServerContext) -> Res
     }
 }
 
-async fn get_blob(req: GetBlobRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn get_blob(req: GetBlobRequest, op: User, ctx: &ServerContext) -> Response<()> {
     debug!("Get blob: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if !tx.has_blob(req.id)? {
             return Ok(None);
         }
