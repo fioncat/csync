@@ -1,6 +1,18 @@
+DOCKER_CMD ?= docker
+BUILD_IMAGE ?= rust:latest
+BASE_IMAGE ?= debian:latest
+IMAGE ?= fioncat/csync:latest
+
 .PHONY: all
 all:
 	@cargo build
+
+.PHONY: docker
+docker:
+	$(DOCKER_CMD) build \
+		--build-arg BUILD_IMAGE=$(BUILD_IMAGE) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		-t $(IMAGE) .
 
 .PHONY: test
 test:
