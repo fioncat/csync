@@ -186,7 +186,7 @@ impl ServerConfig {
             jwt_generator,
             jwt_validator,
             cfg: self.clone(),
-            revision: Default::default(),
+            state: Default::default(),
         };
         Ok(Arc::new(ctx))
     }

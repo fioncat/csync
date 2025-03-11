@@ -7,22 +7,22 @@ use csync_misc::display;
 
 use super::RunCommand;
 
-/// Display current revision and latest sha256
+/// Display current server state
 #[derive(Args)]
-pub struct RevisionArgs {
+pub struct StateArgs {
     #[command(flatten)]
     pub config: ConfigArgs,
 }
 
 #[async_trait]
-impl RunCommand for RevisionArgs {
+impl RunCommand for StateArgs {
     async fn run(&self) -> Result<()> {
         let cfg: ClientConfig = self.config.load("client")?;
         let mut client = cfg.connect_restful(false).await?;
 
-        let rev = client.get_revision().await?;
+        let state = client.get_state().await?;
 
-        display::pretty_json(rev)?;
+        display::pretty_json(state)?;
 
         Ok(())
     }

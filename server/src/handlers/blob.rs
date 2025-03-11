@@ -71,7 +71,7 @@ async fn put_blob(req: Blob, op: User, ctx: &ServerContext) -> Response<()> {
 
     match result {
         Ok(latest) => {
-            debug!("Create blob done, update revision latest: {latest:?}");
+            debug!("Create blob done, update latest: {latest:?}");
             ctx.update_latest(latest);
             Response::ok()
         }
@@ -114,8 +114,8 @@ async fn patch_blob(req: PatchBlobRequest, op: User, ctx: &ServerContext) -> Res
 
     match result {
         Ok(true) => {
-            debug!("Patch blob done, growing revision");
-            ctx.grow_revision();
+            debug!("Patch blob done, growing rev");
+            ctx.grow_rev();
             Response::ok()
         }
         Ok(false) => Response::resource_not_found(),
@@ -182,8 +182,8 @@ async fn delete_blob(req: GetBlobRequest, op: User, ctx: &ServerContext) -> Resp
 
     match result {
         Ok(true) => {
-            debug!("Delete blob done, growing revision");
-            ctx.grow_revision();
+            debug!("Delete blob done, growing rev");
+            ctx.grow_rev();
             Response::ok()
         }
         Ok(false) => Response::resource_not_found(),

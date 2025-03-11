@@ -12,7 +12,7 @@ use crate::{humanize, parse_from_map, time};
 use super::{QueryRequest, Request, RequestField};
 
 pub const METADATA_PATH: &str = "/v1/metadata";
-pub const REVISION_PATH: &str = "/v1/revision";
+pub const STATE_PATH: &str = "/v1/state";
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Metadata {
@@ -197,7 +197,7 @@ impl Request for GetMetadataRequest {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
-pub struct Revision {
+pub struct ServerState {
     pub rev: Option<u64>,
     pub latest: Option<Metadata>,
 }

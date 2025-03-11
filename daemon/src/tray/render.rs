@@ -56,7 +56,7 @@ impl Renderer {
         let error_icon = Image::from_bytes(error_icon_data).unwrap();
         let ok_icon = Image::from_bytes(ok_icon_data).unwrap();
 
-        let title_item = if self.state.server_error {
+        let title_item = if self.state.fetch_error || self.state.rev_error {
             IconMenuItem::new(
                 &self.app,
                 Self::ERROR_TITLE,

@@ -5,13 +5,15 @@ use csync_misc::api::blob::Blob;
 use csync_misc::api::metadata::BlobType;
 use csync_misc::clipboard::Clipboard;
 use csync_misc::{code, imghdr};
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use tokio::select;
 use tokio::sync::mpsc;
 
 use crate::remote::Remote;
 
 pub struct ClipboardSync {
+    latest_id: u64,
+
     remote: Remote,
 
     dirty_text: Option<Blob>,
@@ -34,6 +36,7 @@ impl ClipboardSync {
         let (copy_tx, copy_rx) = mpsc::channel(200);
 
         let cs = Self {
+            latest_id: 0,
             remote,
             dirty_text: None,
             dirty_image: None,
@@ -79,18 +82,25 @@ impl ClipboardSync {
     }
 
     async fn handle_server(&mut self) -> Result<()> {
-        let (rev, ok) = self.remote.get_revision().await;
-        if !ok {
+        let (state, has_err) = self.remote.get_state().await;
+        if has_err {
             return Ok(());
         }
 
-        let rev = match rev {
-            Some(rev) => rev,
+        let state = match state {
+            Some(state) => state,
             None => return Ok(()),
         };
 
-        let latest = match rev.latest {
-            Some(ref latest) => latest,
+        let latest = match state.latest {
+            Some(ref latest) => {
+                if self.latest_id == latest.id {
+                    return Ok(());
+                }
+                self.latest_id = latest.id;
+                info!("Latest blob id updated to {}, need to sync", latest.id);
+                latest
+            }
             None => return Ok(()),
         };
 
@@ -98,9 +108,9 @@ impl ClipboardSync {
             BlobType::Text => {
                 if let Some(ref last_sha256) = self.clipboard_text_sha256 {
                     if last_sha256 == &latest.blob_sha256 {
-                        debug!(
-                            "Text with sha256 {} is equals to clipboard, skip",
-                            latest.blob_sha256
+                        info!(
+                            "Text {} with sha256 {} is equals to clipboard, skip",
+                            latest.id, latest.blob_sha256
                         );
                         return Ok(());
                     }
@@ -109,9 +119,9 @@ impl ClipboardSync {
             BlobType::Image => {
                 if let Some(ref last_sha256) = self.clipboard_image_sha256 {
                     if last_sha256 == &latest.blob_sha256 {
-                        debug!(
-                            "Image with sha256 {} is equals to clipboard, skip",
-                            latest.blob_sha256
+                        info!(
+                            "Image {} with sha256 {} is equals to clipboard, skip",
+                            latest.id, latest.blob_sha256
                         );
                         return Ok(());
                     }

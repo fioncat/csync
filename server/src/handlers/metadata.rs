@@ -1,4 +1,4 @@
-use csync_misc::api::metadata::{GetMetadataRequest, Metadata, Revision};
+use csync_misc::api::metadata::{GetMetadataRequest, Metadata, ServerState};
 use csync_misc::api::user::User;
 use csync_misc::api::{EmptyRequest, ListResponse, Response};
 use log::{debug, error};
@@ -6,7 +6,7 @@ use log::{debug, error};
 use crate::context::ServerContext;
 use crate::register_handlers;
 
-register_handlers!(get_metadata, get_revision);
+register_handlers!(get_metadata, get_state);
 
 async fn get_metadata(
     mut req: GetMetadataRequest,
@@ -36,7 +36,7 @@ async fn get_metadata(
     }
 }
 
-async fn get_revision(_req: EmptyRequest, _op: User, ctx: &ServerContext) -> Response<Revision> {
-    let rev = ctx.get_revision();
+async fn get_state(_req: EmptyRequest, _op: User, ctx: &ServerContext) -> Response<ServerState> {
+    let rev = ctx.get_state();
     Response::with_data(rev)
 }

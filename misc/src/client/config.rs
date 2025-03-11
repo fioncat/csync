@@ -14,14 +14,8 @@ pub struct ClientConfig {
     #[serde(default = "ClientConfig::default_server")]
     pub server: String,
 
-    #[serde(default = "ClientConfig::default_restful_port")]
-    pub restful_port: u32,
-
     #[serde(default = "ClientConfig::default_daemon_port")]
     pub daemon_port: u32,
-
-    #[serde(default = "bool::default")]
-    pub ssl: bool,
 
     #[serde(default = "bool::default")]
     pub accept_invalid_certs: bool,
@@ -40,9 +34,7 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             server: Self::default_server(),
-            restful_port: Self::default_restful_port(),
             daemon_port: Self::default_daemon_port(),
-            ssl: false,
             accept_invalid_certs: false,
             username: Self::default_username(),
             password: Self::default_password(),
@@ -55,9 +47,6 @@ impl CommonConfig for ClientConfig {
     fn complete(&mut self, ps: &PathSet) -> Result<()> {
         if self.server.is_empty() {
             bail!("server address is required");
-        }
-        if self.restful_port == 0 {
-            bail!("restful port is required");
         }
         if self.daemon_port == 0 {
             bail!("daemon port is required");
@@ -77,11 +66,9 @@ impl CommonConfig for ClientConfig {
 
 impl ClientConfig {
     pub async fn connect_restful(&self, use_token: bool) -> Result<RestfulClient> {
-        let protocol = if self.ssl { "https" } else { "http" };
-        let url = format!("{}://{}:{}", protocol, self.server, self.restful_port);
-        info!("Connecting to restful server: {}", url);
+        info!("Connecting to restful server: {}", self.server);
 
-        let client = RestfulClientBuilder::new(&url, &self.username, &self.password)
+        let client = RestfulClientBuilder::new(&self.server, &self.username, &self.password)
             .accept_invalid_certs(self.accept_invalid_certs)
             .use_token(use_token)
             .connect()
@@ -95,11 +82,7 @@ impl ClientConfig {
     }
 
     fn default_server() -> String {
-        String::from("127.0.0.1")
-    }
-
-    fn default_restful_port() -> u32 {
-        13577
+        String::from("http://127.0.0.1:13577")
     }
 
     fn default_daemon_port() -> u32 {

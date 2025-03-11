@@ -10,8 +10,9 @@ use crate::remote::Remote;
 pub struct TrayState {
     pub items: Vec<Metadata>,
     pub total: u64,
-    pub revision: u64,
-    pub server_error: bool,
+    pub rev: u64,
+    pub fetch_error: bool,
+    pub rev_error: bool,
 }
 
 impl TrayState {
@@ -51,12 +52,12 @@ impl TrayStateHandler {
     async fn main_loop(mut self) {
         info!("Start tray state main loop");
         let mut refresh_intv = tokio::time::interval(Duration::from_secs(self.refresh_secs));
-        let mut rev_intv = tokio::time::interval(Duration::from_secs(1));
+        let mut state_intv = tokio::time::interval(Duration::from_secs(1));
 
         loop {
             select! {
-                _ = rev_intv.tick() => {
-                    self.handle_revision().await;
+                _ = state_intv.tick() => {
+                    self.handle_state().await;
                 }
 
                 _ = refresh_intv.tick() => {
@@ -66,14 +67,20 @@ impl TrayStateHandler {
         }
     }
 
-    async fn handle_revision(&mut self) {
-        let (rev, ok) = self.remote.get_revision().await;
-        if !ok {
-            self.data.server_error = true;
+    async fn handle_state(&mut self) {
+        let (state, has_err) = self.remote.get_state().await;
+        if has_err {
+            self.data.rev_error = true;
+            self.updated = true;
             return;
         }
 
-        let rev = match rev {
+        if self.data.rev_error {
+            self.data.rev_error = false;
+            self.updated = true;
+        }
+
+        let rev = match state {
             Some(rev) => match rev.rev {
                 Some(rev) => rev,
                 None => return,
@@ -81,18 +88,18 @@ impl TrayStateHandler {
             None => return,
         };
 
-        if rev == self.data.revision {
+        if rev == self.data.rev {
             return;
         }
-        info!("Tray State: new revision: {}, need refresh state", rev);
-        self.data.revision = rev;
+        info!("Server rev updated: {}, need refresh system tray", rev);
+        self.data.rev = rev;
         self.updated = true;
     }
 
     async fn handle_refresh(&mut self) {
-        if self.data.server_error {
+        if self.data.fetch_error {
             self.reset_state(false).await;
-            if self.data.server_error {
+            if self.data.fetch_error {
                 return;
             }
 
@@ -117,13 +124,13 @@ impl TrayStateHandler {
             Ok(list) => {
                 self.data.items = list.items;
                 self.data.total = list.total;
-                self.data.server_error = false;
+                self.data.fetch_error = false;
             }
             Err(e) => {
                 if with_logs {
                     error!("Tray State: fetch data from server error: {e:#}");
                 }
-                self.data.server_error = true;
+                self.data.fetch_error = true;
             }
         }
     }

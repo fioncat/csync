@@ -87,8 +87,8 @@ impl RestfulServer {
                         .route(web::get().to(handlers::metadata::get_metadata_handler)),
                 )
                 .service(
-                    web::resource(api::metadata::REVISION_PATH)
-                        .route(web::get().to(handlers::metadata::get_revision_handler)),
+                    web::resource(api::metadata::STATE_PATH)
+                        .route(web::get().to(handlers::metadata::get_state_handler)),
                 )
                 .service(
                     web::resource(api::user::GET_TOKEN_PATH)

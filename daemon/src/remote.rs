@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Result;
 use chrono::Utc;
 use csync_misc::api::blob::{Blob, PatchBlobRequest};
-use csync_misc::api::metadata::{GetMetadataRequest, Metadata, Revision};
+use csync_misc::api::metadata::{GetMetadataRequest, Metadata, ServerState};
 use csync_misc::api::{ListResponse, QueryRequest};
 use csync_misc::client::restful::RestfulClient;
 use log::{debug, error, info};
@@ -14,7 +14,7 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
-    get_revision_tx: mpsc::Sender<GetRevisionRequest>,
+    get_state_tx: mpsc::Sender<GetStateRequest>,
     get_metadatas_tx: mpsc::Sender<GetMetadatasRequest>,
     put_blob_tx: mpsc::Sender<PutBlobRequest>,
     get_blob_tx: mpsc::Sender<GetBlobRequest>,
@@ -24,7 +24,7 @@ pub struct Remote {
 
 impl Remote {
     pub fn start(client: RestfulClient, cache_seconds: u64) -> Self {
-        let (get_revision_tx, get_revision_rx) = mpsc::channel(500);
+        let (get_state_tx, get_state_rx) = mpsc::channel(500);
         let (get_metadatas_tx, get_metadatas_rx) = mpsc::channel(500);
         let (put_blob_tx, put_blob_rx) = mpsc::channel(500);
         let (get_blob_tx, get_blob_rx) = mpsc::channel(500);
@@ -33,11 +33,11 @@ impl Remote {
 
         let handler = RemoteHandler {
             client,
-            revision: None,
-            revision_error: false,
+            state: None,
+            state_error: false,
             blobs_cache: HashMap::new(),
             cache_seconds,
-            get_revision_rx,
+            get_state_rx,
             get_metadatas_rx,
             put_blob_rx,
             get_blob_rx,
@@ -49,7 +49,7 @@ impl Remote {
         });
 
         Self {
-            get_revision_tx,
+            get_state_tx,
             get_metadatas_tx,
             put_blob_tx,
             get_blob_tx,
@@ -58,10 +58,10 @@ impl Remote {
         }
     }
 
-    pub async fn get_revision(&self) -> (Option<Arc<Revision>>, bool) {
+    pub async fn get_state(&self) -> (Option<Arc<ServerState>>, bool) {
         let (resp_tx, resp_rx) = oneshot::channel();
-        self.get_revision_tx
-            .send(GetRevisionRequest { resp: resp_tx })
+        self.get_state_tx
+            .send(GetStateRequest { resp: resp_tx })
             .await
             .unwrap();
         resp_rx.await.unwrap()
@@ -123,8 +123,8 @@ impl Remote {
     }
 }
 
-struct GetRevisionRequest {
-    resp: oneshot::Sender<(Option<Arc<Revision>>, bool)>,
+struct GetStateRequest {
+    resp: oneshot::Sender<(Option<Arc<ServerState>>, bool)>,
 }
 
 struct GetMetadatasRequest {
@@ -160,13 +160,13 @@ struct CacheBlob {
 
 struct RemoteHandler {
     client: RestfulClient,
-    revision: Option<Arc<Revision>>,
-    revision_error: bool,
+    state: Option<Arc<ServerState>>,
+    state_error: bool,
 
     blobs_cache: HashMap<u64, CacheBlob>,
     cache_seconds: u64,
 
-    get_revision_rx: mpsc::Receiver<GetRevisionRequest>,
+    get_state_rx: mpsc::Receiver<GetStateRequest>,
     get_metadatas_rx: mpsc::Receiver<GetMetadatasRequest>,
     put_blob_rx: mpsc::Receiver<PutBlobRequest>,
     get_blob_rx: mpsc::Receiver<GetBlobRequest>,
@@ -177,17 +177,17 @@ struct RemoteHandler {
 impl RemoteHandler {
     async fn main_loop(mut self) {
         let mut recycle_cache_intv = tokio::time::interval(Duration::from_secs(self.cache_seconds));
-        let mut refresh_revision_intv = tokio::time::interval(Duration::from_secs(1));
+        let mut refresh_state_intv = tokio::time::interval(Duration::from_secs(1));
         info!("Begin to handle remote requests");
 
         loop {
             select! {
-                _ = refresh_revision_intv.tick() => {
-                    self.refresh_revision().await;
+                _ = refresh_state_intv.tick() => {
+                    self.refresh_state().await;
                 },
 
-                Some(req) = self.get_revision_rx.recv() => {
-                    let result = self.handle_get_revision().await;
+                Some(req) = self.get_state_rx.recv() => {
+                    let result = self.handle_get_state().await;
                     req.resp.send(result).unwrap();
                 }
 
@@ -223,39 +223,39 @@ impl RemoteHandler {
         }
     }
 
-    async fn refresh_revision(&mut self) {
-        let latest_rev = match self.client.get_revision().await {
+    async fn refresh_state(&mut self) {
+        let latest_state = match self.client.get_state().await {
             Ok(rev) => rev,
             Err(e) => {
-                if self.revision_error {
-                    debug!("Get revision still failed: {e:#}");
+                if self.state_error {
+                    debug!("Get state still failed: {e:#}");
                 } else {
-                    error!("Get revision from server error: {e:#}");
-                    self.revision_error = true;
+                    error!("Get state from server error: {e:#}");
+                    self.state_error = true;
                 }
                 return;
             }
         };
 
-        if self.revision_error {
-            info!("Server revision error recovered");
-            self.revision_error = false;
+        if self.state_error {
+            info!("Server state error recovered");
+            self.state_error = false;
         }
 
-        if let Some(ref old_rev) = self.revision {
-            if old_rev.as_ref() == &latest_rev {
+        if let Some(ref old_state) = self.state {
+            if old_state.as_ref() == &latest_state {
                 return;
             }
-            info!("Server revision updated from {old_rev:?} to {latest_rev:?}");
+            debug!("Server state updated from {old_state:?} to {latest_state:?}");
         } else {
-            info!("First time getting server revision {latest_rev:?}");
+            debug!("First time getting server state {latest_state:?}");
         }
 
-        self.revision = Some(Arc::new(latest_rev));
+        self.state = Some(Arc::new(latest_state));
     }
 
-    async fn handle_get_revision(&mut self) -> (Option<Arc<Revision>>, bool) {
-        (self.revision.clone(), self.revision_error)
+    async fn handle_get_state(&mut self) -> (Option<Arc<ServerState>>, bool) {
+        (self.state.clone(), self.state_error)
     }
 
     async fn handle_get_metadatas(&mut self, limit: u64) -> Result<ListResponse<Metadata>> {

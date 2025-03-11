@@ -39,8 +39,8 @@ pub async fn start_recycle(ctx: Arc<ServerContext>) {
         match result {
             Ok(false) => {}
             Ok(true) => {
-                debug!("Recycled blobs, grow revision");
-                ctx.grow_revision();
+                debug!("Recycled blobs, grow rev");
+                ctx.grow_rev();
             }
             Err(e) => {
                 error!("Failed to recycle blobs: {:#}", e);
