@@ -54,8 +54,11 @@ pub enum LogLevel {
     #[serde(rename = "error")]
     Error,
 
-    #[serde(rename = "warning")]
-    Warning,
+    #[serde(rename = "warn")]
+    Warn,
+
+    #[serde(rename = "debug")]
+    Debug,
 }
 
 impl CommonConfig for LogsConfig {
@@ -94,8 +97,9 @@ impl LogsConfig {
     pub fn init(&self, name: &str) -> Result<()> {
         let level_filter = match self.level {
             LogLevel::Error => LevelFilter::Error,
-            LogLevel::Warning => LevelFilter::Warn,
+            LogLevel::Warn => LevelFilter::Warn,
             LogLevel::Info => LevelFilter::Info,
+            LogLevel::Debug => LevelFilter::Debug,
         };
 
         let config = match self.target {

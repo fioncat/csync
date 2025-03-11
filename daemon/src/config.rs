@@ -101,9 +101,8 @@ impl DaemonConfig {
 
     pub async fn build_remote(&self, client_cfg: &ClientConfig) -> Result<Remote> {
         let client = client_cfg.connect_restful(true).await?;
-        let events_sub = client_cfg.subscribe_events().await?;
 
-        let remote = Remote::start(client, self.cache_secs, events_sub);
+        let remote = Remote::start(client, self.cache_secs);
         Ok(remote)
     }
 

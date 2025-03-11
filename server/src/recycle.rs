@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
-use csync_misc::api::metadata::{Event, EventType, GetMetadataRequest};
+use csync_misc::api::metadata::GetMetadataRequest;
 use log::{debug, error, info};
 
 use crate::context::ServerContext;
@@ -30,21 +30,17 @@ pub async fn start_recycle(ctx: Arc<ServerContext>) {
                 let count = tx.delete_blobs(ids)?;
                 info!("Recycled {count} blobs");
 
-                return Ok(Some(metadatas));
+                return Ok(true);
             }
 
-            Ok(None)
+            Ok(false)
         });
 
         match result {
-            Ok(None) => {}
-            Ok(Some(deleted)) => {
-                debug!("Notify recycle items event: {:?}", deleted);
-                let event = Event {
-                    event_type: EventType::Delete,
-                    items: deleted,
-                };
-                ctx.notify_event(event).await;
+            Ok(false) => {}
+            Ok(true) => {
+                debug!("Recycled blobs, grow revision");
+                ctx.grow_revision();
             }
             Err(e) => {
                 error!("Failed to recycle blobs: {:#}", e);

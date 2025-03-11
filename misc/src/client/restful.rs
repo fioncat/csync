@@ -7,7 +7,7 @@ use reqwest::{Method, Url};
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::api::blob::{Blob, GetBlobRequest, PatchBlobRequest};
-use crate::api::metadata::{GetMetadataRequest, Metadata};
+use crate::api::metadata::{GetMetadataRequest, Metadata, Revision};
 use crate::api::user::{
     DeleteUserRequest, GetUserRequest, PatchUserRequest, PutUserRequest, TokenResponse, User,
 };
@@ -107,6 +107,14 @@ impl RestfulClient {
         }
 
         Ok(list.items.remove(0))
+    }
+
+    pub async fn get_revision(&mut self) -> Result<Revision> {
+        self.refresh_token().await?;
+        let resp: Response<Revision> = self
+            .do_request(Method::GET, api::metadata::REVISION_PATH, EmptyRequest)
+            .await?;
+        Ok(resp.data.unwrap_or_default())
     }
 
     pub async fn put_user(&mut self, user: PutUserRequest) -> Result<()> {

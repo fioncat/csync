@@ -2,13 +2,12 @@ use anyhow::{bail, Context, Result};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::client::events;
 use crate::client::restful::RestfulClientBuilder;
 use crate::config::{CommonConfig, PathSet};
 use crate::logs::LogsConfig;
 
-use super::events::EventsChannel;
-use super::{daemon::DaemonClient, restful::RestfulClient};
+use super::daemon::DaemonClient;
+use super::restful::RestfulClient;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ClientConfig {
@@ -17,9 +16,6 @@ pub struct ClientConfig {
 
     #[serde(default = "ClientConfig::default_restful_port")]
     pub restful_port: u32,
-
-    #[serde(default = "ClientConfig::default_events_port")]
-    pub events_port: u32,
 
     #[serde(default = "ClientConfig::default_daemon_port")]
     pub daemon_port: u32,
@@ -45,7 +41,6 @@ impl Default for ClientConfig {
         Self {
             server: Self::default_server(),
             restful_port: Self::default_restful_port(),
-            events_port: Self::default_events_port(),
             daemon_port: Self::default_daemon_port(),
             ssl: false,
             accept_invalid_certs: false,
@@ -63,9 +58,6 @@ impl CommonConfig for ClientConfig {
         }
         if self.restful_port == 0 {
             bail!("restful port is required");
-        }
-        if self.events_port == 0 {
-            bail!("events port is required");
         }
         if self.daemon_port == 0 {
             bail!("daemon port is required");
@@ -98,16 +90,6 @@ impl ClientConfig {
         Ok(client)
     }
 
-    pub async fn subscribe_events(&self) -> Result<EventsChannel> {
-        let addr = format!("{}:{}", self.server, self.events_port);
-        info!("Subscribing events from: {}", addr);
-
-        let username = self.username.clone();
-        let password = self.password.clone();
-
-        events::subscribe(addr, username, password).await
-    }
-
     pub async fn connect_daemon(&self) -> Result<DaemonClient> {
         DaemonClient::connect(self.daemon_port).await
     }
@@ -120,12 +102,8 @@ impl ClientConfig {
         13577
     }
 
-    fn default_events_port() -> u32 {
-        13578
-    }
-
     fn default_daemon_port() -> u32 {
-        13579
+        13578
     }
 
     fn default_username() -> String {

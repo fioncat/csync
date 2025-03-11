@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use csync_misc::api::blob::Blob;
-use csync_misc::api::metadata::{BlobType, Event, EventType};
+use csync_misc::api::metadata::BlobType;
 use csync_misc::clipboard::Clipboard;
 use csync_misc::{code, imghdr};
 use log::{debug, error, info, warn};
@@ -52,53 +52,55 @@ impl ClipboardSync {
 
     async fn main_loop(mut self) {
         let mut clipboard_intv = tokio::time::interval(Duration::from_secs(self.clipboard_secs));
-        let mut events_sub = self.remote.subscribe().await;
+        let mut server_intv = tokio::time::interval(Duration::from_secs(1));
 
         info!("Begin to sync clipboard and server");
         loop {
             select! {
-                event = events_sub.events.recv() => {
-                    if let Err(e) = self.handle_event(event.unwrap()).await {
-                        error!("Handle event error: {:?}", e);
+                _ = server_intv.tick() => {
+                    if let Err(e) = self.handle_server().await {
+                        error!("Handle server error: {:#}", e);
                     }
                 }
 
                 _ = clipboard_intv.tick() => {
                     if let Err(e) = self.sync_clipboard().await {
-                        error!("Sync clipboard error: {:?}", e);
+                        error!("Sync clipboard error: {:#}", e);
                     }
                 }
 
                 Some(data) = self.copy_rx.recv() => {
                     if let Err(e) = self.handle_copy(data) {
-                        error!("Handle copy error: {:?}", e);
+                        error!("Handle copy error: {:#}", e);
                     }
                 }
-
-                state = events_sub.states.recv() => {
-                    debug!("Clipboard sync: event state updated to {}", state.unwrap());
-                },
             }
         }
     }
 
-    async fn handle_event(&mut self, mut event: Event) -> Result<()> {
-        if !matches!(event.event_type, EventType::Put) {
+    async fn handle_server(&mut self) -> Result<()> {
+        let (rev, ok) = self.remote.get_revision().await;
+        if !ok {
             return Ok(());
         }
 
-        let item = match event.items.pop() {
-            Some(item) => item,
+        let rev = match rev {
+            Some(rev) => rev,
             None => return Ok(()),
         };
 
-        match item.blob_type {
+        let latest = match rev.latest {
+            Some(ref latest) => latest,
+            None => return Ok(()),
+        };
+
+        match latest.blob_type {
             BlobType::Text => {
                 if let Some(ref last_sha256) = self.clipboard_text_sha256 {
-                    if last_sha256 == &item.blob_sha256 {
+                    if last_sha256 == &latest.blob_sha256 {
                         debug!(
                             "Text with sha256 {} is equals to clipboard, skip",
-                            item.blob_sha256
+                            latest.blob_sha256
                         );
                         return Ok(());
                     }
@@ -106,10 +108,10 @@ impl ClipboardSync {
             }
             BlobType::Image => {
                 if let Some(ref last_sha256) = self.clipboard_image_sha256 {
-                    if last_sha256 == &item.blob_sha256 {
+                    if last_sha256 == &latest.blob_sha256 {
                         debug!(
                             "Image with sha256 {} is equals to clipboard, skip",
-                            item.blob_sha256
+                            latest.blob_sha256
                         );
                         return Ok(());
                     }
@@ -118,7 +120,7 @@ impl ClipboardSync {
             BlobType::File => return Ok(()),
         }
 
-        let blob = self.remote.get_blob(item.id).await?;
+        let blob = self.remote.get_blob(latest.id).await?;
 
         match blob.blob_type {
             BlobType::Text => {
