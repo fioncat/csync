@@ -12,7 +12,7 @@ data:
     truncate_text_width = {{ .Values.config.truncateTextWidth }}
     salt_length = {{ .Values.config.saltLength }}
     token_expiration_secs = {{ .Values.config.tokenExpirationSecs }}
-    keep_alive_secs = {{ .Values.config.keep_alive_secs }}
+    keep_alive_secs = {{ .Values.config.keepAliveSecs }}
     workers = {{ .Values.config.workers }}
     payload_limit_mib = {{ .Values.config.payloadLimitMib }}
 
