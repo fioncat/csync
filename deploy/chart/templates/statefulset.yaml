@@ -28,8 +28,7 @@ spec:
         - name: csync-pki
           mountPath: /etc/csync/pki
         readinessProbe:
-          httpGet:
-            path: /v1/healthz
+          tcpSocket:
             port: http
           initialDelaySeconds: 3
           periodSeconds: 5
