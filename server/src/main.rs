@@ -14,7 +14,7 @@ use clap::Parser;
 use config::ServerConfig;
 use csync_misc::config::ConfigArgs;
 use csync_misc::display;
-use log::{error, info};
+use log::info;
 
 #[derive(Parser, Debug)]
 #[command(author, version = env!("CSYNC_VERSION"), about)]
@@ -56,7 +56,7 @@ async fn main() {
     match run(args).await {
         Ok(()) => {}
         Err(e) => {
-            error!("Error: {:#}", e);
+            eprintln!("Error: {:#}", e);
             process::exit(1);
         }
     }
