@@ -38,6 +38,7 @@ impl SystemTray {
         }
     }
 
+    // FIXME: This is need for <https://github.com/tauri-apps/tauri/issues/12382>
     #[allow(deprecated)]
     pub fn run(self) -> Result<()> {
         info!("Starting system tray event loop");

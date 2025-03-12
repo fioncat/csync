@@ -6,8 +6,8 @@ use csync_misc::api::user::{
 use csync_misc::api::{ListResponse, Response};
 use csync_misc::code;
 use log::{debug, error};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::distr::Alphanumeric;
+use rand::{rng, Rng};
 
 use crate::context::ServerContext;
 use crate::db::types::CreateUserParams;
@@ -157,7 +157,7 @@ async fn delete_user(req: DeleteUserRequest, op: User, ctx: &ServerContext) -> R
 }
 
 fn generate_salt(length: usize) -> String {
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     (0..length)
         .map(|_| rng.sample(Alphanumeric) as char)
