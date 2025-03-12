@@ -1,20 +1,21 @@
+use std::sync::Arc;
+
+use actix_web::web::{Bytes, Data};
+use actix_web::{HttpRequest, HttpResponse};
 use chrono::Utc;
-use csync_misc::api::user::User;
-use csync_misc::api::{EmptyRequest, HealthResponse, Response};
+use csync_misc::api::{HealthResponse, Response};
 
 use crate::context::ServerContext;
-use crate::register_handlers;
 
-register_handlers!(get_healthz);
-
-async fn get_healthz(
-    _req: EmptyRequest,
-    _op: User,
-    _sc: &ServerContext,
-) -> Response<HealthResponse> {
+pub async fn get_healthz_handler(
+    _req: HttpRequest,
+    _body: Option<Bytes>,
+    _ctx: Data<Arc<ServerContext>>,
+) -> HttpResponse {
     let now = Utc::now().timestamp() as u64;
-    Response::with_data(HealthResponse {
+    let resp = Response::with_data(HealthResponse {
         version: env!("CSYNC_VERSION").to_string(),
         timestamp: now,
-    })
+    });
+    HttpResponse::Ok().json(resp)
 }

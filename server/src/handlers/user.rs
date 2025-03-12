@@ -15,18 +15,18 @@ use crate::register_handlers;
 
 register_handlers!(put_user, get_user, patch_user, delete_user);
 
-async fn put_user(mut req: PutUserRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn put_user(mut req: PutUserRequest, op: User, ctx: &ServerContext) -> Response<()> {
     if !op.admin {
         return Response::forbidden();
     }
     debug!("Create user: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if tx.has_user(req.name.clone())? {
             return Ok(false);
         }
 
-        let salt = generate_salt(sc.cfg.salt_length);
+        let salt = generate_salt(ctx.cfg.salt_length);
         req.password = code::sha256(format!("{}{}", req.password, salt));
 
         let now = Utc::now().timestamp() as u64;
@@ -52,7 +52,7 @@ async fn put_user(mut req: PutUserRequest, op: User, sc: &ServerContext) -> Resp
 async fn get_user(
     req: GetUserRequest,
     op: User,
-    sc: &ServerContext,
+    ctx: &ServerContext,
 ) -> Response<ListResponse<User>> {
     if !op.admin {
         match req.name {
@@ -68,7 +68,7 @@ async fn get_user(
     }
     debug!("Get users: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         let total = tx.count_users(req.clone())?;
         let users = tx.get_users(req)?;
         Ok(ListResponse {
@@ -86,7 +86,7 @@ async fn get_user(
     }
 }
 
-async fn patch_user(req: PatchUserRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn patch_user(req: PatchUserRequest, op: User, ctx: &ServerContext) -> Response<()> {
     if !op.admin && req.name != op.name {
         return Response::forbidden();
     }
@@ -96,7 +96,7 @@ async fn patch_user(req: PatchUserRequest, op: User, sc: &ServerContext) -> Resp
 
     debug!("Patch user: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if !tx.has_user(req.name.clone())? {
             return Ok(false);
         }
@@ -116,14 +116,14 @@ async fn patch_user(req: PatchUserRequest, op: User, sc: &ServerContext) -> Resp
     }
 }
 
-async fn delete_user(req: DeleteUserRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn delete_user(req: DeleteUserRequest, op: User, ctx: &ServerContext) -> Response<()> {
     if !op.admin && req.name != op.name {
         return Response::forbidden();
     }
 
     debug!("Delete user: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if !tx.has_user(req.name.clone())? {
             return Ok(false);
         }

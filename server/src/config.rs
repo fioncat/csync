@@ -3,33 +3,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use csync_misc::api::metadata::Event;
 use csync_misc::config::{CommonConfig, PathSet};
 use csync_misc::dirs;
 use csync_misc::logs::LogsConfig;
 use log::info;
 use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod};
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
 
 use crate::auth::jwt::{JwtTokenGenerator, JwtTokenValidator};
 use crate::auth::rsa;
 use crate::context::ServerContext;
 use crate::db::config::DbConfig;
-use crate::events::notify::Notifier;
-use crate::events::server::EventsServer;
 use crate::restful::RestfulServer;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerConfig {
     #[serde(default = "ServerConfig::default_bind")]
     pub bind: String,
-
-    #[serde(default = "ServerConfig::default_restful_port")]
-    pub restful_port: u32,
-
-    #[serde(default = "ServerConfig::default_events_port")]
-    pub events_port: u32,
 
     #[serde(default)]
     pub ssl: bool,
@@ -72,8 +62,6 @@ impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
             bind: Self::default_bind(),
-            restful_port: Self::default_restful_port(),
-            events_port: Self::default_events_port(),
             ssl: false,
             admin_password: Self::default_admin_password(),
             recycle_hours: Self::default_recycle_hours(),
@@ -95,14 +83,6 @@ impl CommonConfig for ServerConfig {
     fn complete(&mut self, ps: &PathSet) -> Result<()> {
         if self.bind.is_empty() {
             bail!("bind is required");
-        }
-
-        if self.restful_port == 0 {
-            bail!("restful_port is required");
-        }
-
-        if self.events_port == 0 {
-            bail!("events_port is required");
         }
 
         if self.admin_password.is_empty() {
@@ -193,7 +173,7 @@ impl ServerConfig {
     const MIN_TOKEN_EXPIRATION_SECS: u64 = 60;
     const MAX_TOKEN_EXPIRATION_SECS: u64 = 60 * 60 * 24 * 365;
 
-    pub fn build_ctx(&self, event_tx: mpsc::Sender<Event>) -> Result<Arc<ServerContext>> {
+    pub fn build_ctx(&self) -> Result<Arc<ServerContext>> {
         let db = self.db.build().context("init database")?;
         let (token_public, token_private) = self.read_jwt_keys()?;
         let jwt_generator = JwtTokenGenerator::new(&token_private, self.token_expiration_secs)
@@ -206,27 +186,13 @@ impl ServerConfig {
             jwt_generator,
             jwt_validator,
             cfg: self.clone(),
-            event_tx: Some(event_tx),
+            state: Default::default(),
         };
         Ok(Arc::new(ctx))
     }
 
-    pub fn build_events_server(
-        &self,
-        events_rx: mpsc::Receiver<Event>,
-        ctx: Arc<ServerContext>,
-    ) -> Result<EventsServer> {
-        let notifier = Notifier::start(events_rx);
-
-        let addr = format!("{}:{}", self.bind, self.events_port);
-        let srv = EventsServer::new(addr, notifier, ctx);
-
-        Ok(srv)
-    }
-
     pub fn build_restful_server(&self, ctx: Arc<ServerContext>) -> Result<RestfulServer> {
-        let bind = format!("{}:{}", self.bind, self.restful_port);
-        let mut srv = RestfulServer::new(bind, ctx);
+        let mut srv = RestfulServer::new(self.bind.clone(), ctx);
         if self.ssl {
             let ssl = self.build_ssl()?;
             srv.set_ssl(ssl);
@@ -291,15 +257,7 @@ impl ServerConfig {
     }
 
     fn default_bind() -> String {
-        String::from("127.0.0.1")
-    }
-
-    fn default_restful_port() -> u32 {
-        13577
-    }
-
-    fn default_events_port() -> u32 {
-        13578
+        String::from("127.0.0.1:13577")
     }
 
     fn default_admin_password() -> String {

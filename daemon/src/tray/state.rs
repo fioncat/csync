@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
-use csync_misc::api::metadata::{Event, EventType, Metadata};
+use csync_misc::api::metadata::Metadata;
 use log::{debug, error, info};
 use tokio::{select, sync::mpsc};
 
@@ -11,8 +10,9 @@ use crate::remote::Remote;
 pub struct TrayState {
     pub items: Vec<Metadata>,
     pub total: u64,
-    pub events_error: bool,
+    pub rev: u64,
     pub fetch_error: bool,
+    pub rev_error: bool,
 }
 
 impl TrayState {
@@ -51,17 +51,13 @@ struct TrayStateHandler {
 impl TrayStateHandler {
     async fn main_loop(mut self) {
         info!("Start tray state main loop");
-        let mut events_sub = self.remote.subscribe().await;
         let mut refresh_intv = tokio::time::interval(Duration::from_secs(self.refresh_secs));
+        let mut state_intv = tokio::time::interval(Duration::from_secs(1));
 
         loop {
             select! {
-                event = events_sub.events.recv() => {
-                    self.handle_event(event.unwrap()).await;
-                }
-
-                state = events_sub.states.recv() => {
-                    self.handle_event_state(state.unwrap()).await;
+                _ = state_intv.tick() => {
+                    self.handle_state().await;
                 }
 
                 _ = refresh_intv.tick() => {
@@ -71,36 +67,32 @@ impl TrayStateHandler {
         }
     }
 
-    async fn handle_event(&mut self, event: Event) {
-        debug!("Tray State: handle event: {:#?}", event);
-        self.data.events_error = false;
-        if matches!(event.event_type, EventType::Put) {
-            debug!("Tray State: new item added, need refresh state");
+    async fn handle_state(&mut self) {
+        let (state, has_err) = self.remote.get_state().await;
+        if has_err {
+            self.data.rev_error = true;
             self.updated = true;
             return;
         }
 
-        let updated: HashMap<u64, Metadata> = event
-            .items
-            .into_iter()
-            .map(|item| (item.id, item))
-            .collect();
-        for item in self.data.items.iter() {
-            if updated.contains_key(&item.id) {
-                debug!(
-                    "Tray State: item {} updated or deleted, need refresh state",
-                    item.id
-                );
-                self.updated = true;
-                return;
-            }
+        if self.data.rev_error {
+            self.data.rev_error = false;
+            self.updated = true;
         }
-    }
 
-    async fn handle_event_state(&mut self, state: bool) {
-        debug!("Tray State: receive event error, need refresh state");
+        let rev = match state {
+            Some(rev) => match rev.rev {
+                Some(rev) => rev,
+                None => return,
+            },
+            None => return,
+        };
 
-        self.data.events_error = !state;
+        if rev == self.data.rev {
+            return;
+        }
+        info!("Server rev updated: {}, need refresh system tray", rev);
+        self.data.rev = rev;
         self.updated = true;
     }
 

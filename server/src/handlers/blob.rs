@@ -1,6 +1,6 @@
 use chrono::Utc;
 use csync_misc::api::blob::{Blob, GetBlobRequest, PatchBlobRequest};
-use csync_misc::api::metadata::{BlobType, Event, EventType, GetMetadataRequest, Metadata};
+use csync_misc::api::metadata::{BlobType, GetMetadataRequest, Metadata};
 use csync_misc::api::user::User;
 use csync_misc::api::Response;
 use csync_misc::{code, humanize};
@@ -13,7 +13,7 @@ use crate::register_handlers;
 
 register_handlers!(put_blob, patch_blob, get_blob, delete_blob);
 
-async fn put_blob(req: Blob, op: User, sc: &ServerContext) -> Response<()> {
+async fn put_blob(req: Blob, op: User, ctx: &ServerContext) -> Response<()> {
     let sha256 = code::sha256(&req.data);
     if sha256 != req.sha256 {
         return Response::bad_request("data sha256 mismatch");
@@ -25,8 +25,7 @@ async fn put_blob(req: Blob, op: User, sc: &ServerContext) -> Response<()> {
         req.data.len()
     );
 
-    let mut deleted = Vec::new();
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         let sha256_query = GetMetadataRequest {
             sha256: Some(sha256.clone()),
             ..Default::default()
@@ -37,74 +36,57 @@ async fn put_blob(req: Blob, op: User, sc: &ServerContext) -> Response<()> {
                 "Found duplicate blobs with sha256 {}: {:?}, delete them",
                 sha256, duplicates
             );
-            deleted = duplicates.clone();
             let ids: Vec<_> = duplicates.iter().map(|m| m.id).collect();
             tx.delete_blobs(ids)?;
         }
 
-        let summary = get_summary(&req, sc.cfg.truncate_text_width);
-        let owner = op.name.clone();
+        let summary = get_summary(&req, ctx.cfg.truncate_text_width);
         let update_time = Utc::now().timestamp() as u64;
-        let recycle_time = update_time + sc.cfg.recycle_seconds;
+        let recycle_time = update_time + ctx.cfg.recycle_seconds;
         let blob_type = req.blob_type;
         let size = req.data.len() as u64;
         let params = CreateBlobParams {
             blob: req,
             summary: summary.clone(),
-            owner: owner.clone(),
+            owner: op.name.clone(),
             update_time,
             recycle_time,
         };
 
         let id = tx.create_blob(params)?;
-
-        let metadata = Metadata {
+        let latest = Metadata {
             id,
             pin: false,
             blob_type,
             blob_sha256: sha256,
             blob_size: size,
             summary,
-            owner,
-            update_time,
+            owner: op.name.clone(),
             recycle_time,
+            update_time,
         };
 
-        Ok(metadata)
+        Ok(latest)
     });
 
-    let metadata = match result {
-        Ok(metadata) => metadata,
+    match result {
+        Ok(latest) => {
+            debug!("Create blob done, update latest: {latest:?}");
+            ctx.update_latest(latest);
+            Response::ok()
+        }
         Err(e) => {
             error!("Failed to create blob: {e:#}");
-            return Response::database_error();
+            Response::database_error()
         }
-    };
-
-    debug!("Create blob done, sending event: {metadata:?}");
-    sc.notify_event(Event {
-        event_type: EventType::Put,
-        items: vec![metadata],
-    })
-    .await;
-
-    if !deleted.is_empty() {
-        debug!("Sending delete event: {:?}", deleted);
-        sc.notify_event(Event {
-            event_type: EventType::Delete,
-            items: deleted,
-        })
-        .await;
     }
-
-    Response::ok()
 }
 
-async fn patch_blob(req: PatchBlobRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn patch_blob(req: PatchBlobRequest, op: User, ctx: &ServerContext) -> Response<()> {
     debug!("Patch blob: {req:?}");
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if !tx.has_blob(req.id)? {
-            return Ok(None);
+            return Ok(false);
         }
 
         if !op.admin {
@@ -114,48 +96,40 @@ async fn patch_blob(req: PatchBlobRequest, op: User, sc: &ServerContext) -> Resp
                     "User {} try to patch blob {} owned by {}",
                     op.name, req.id, metadata.owner
                 );
-                return Ok(None);
+                return Ok(false);
             }
         }
-
-        let id = req.id;
 
         let now = Utc::now().timestamp() as u64;
         let params = PatchBlobParams {
             patch: req,
             update_time: now,
-            recycle_time: now + sc.cfg.recycle_seconds,
+            recycle_time: now + ctx.cfg.recycle_seconds,
         };
 
         tx.update_blob(params)?;
 
-        let metadata = tx.get_metadata(id)?;
-        Ok(Some(metadata))
+        Ok(true)
     });
 
-    let metadata = match result {
-        Ok(Some(metadata)) => metadata,
-        Ok(None) => return Response::resource_not_found(),
+    match result {
+        Ok(true) => {
+            debug!("Patch blob done, growing rev");
+            ctx.grow_rev();
+            Response::ok()
+        }
+        Ok(false) => Response::resource_not_found(),
         Err(e) => {
             error!("Failed to update blob: {e:#}");
-            return Response::database_error();
+            Response::database_error()
         }
-    };
-
-    debug!("Patch blob done, sending event: {metadata:?}");
-    sc.notify_event(Event {
-        event_type: EventType::Update,
-        items: vec![metadata],
-    })
-    .await;
-
-    Response::ok()
+    }
 }
 
-async fn get_blob(req: GetBlobRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn get_blob(req: GetBlobRequest, op: User, ctx: &ServerContext) -> Response<()> {
     debug!("Get blob: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if !tx.has_blob(req.id)? {
             return Ok(None);
         }
@@ -185,12 +159,12 @@ async fn get_blob(req: GetBlobRequest, op: User, sc: &ServerContext) -> Response
     }
 }
 
-async fn delete_blob(req: GetBlobRequest, op: User, sc: &ServerContext) -> Response<()> {
+async fn delete_blob(req: GetBlobRequest, op: User, ctx: &ServerContext) -> Response<()> {
     debug!("Delete blob: {req:?}");
 
-    let result = sc.db.with_transaction(|tx| {
+    let result = ctx.db.with_transaction(|tx| {
         if !tx.has_blob(req.id)? {
-            return Ok(None);
+            return Ok(false);
         }
 
         let metadata = tx.get_metadata(req.id)?;
@@ -199,30 +173,25 @@ async fn delete_blob(req: GetBlobRequest, op: User, sc: &ServerContext) -> Respo
                 "User {} try to delete blob {} owned by {}",
                 op.name, req.id, metadata.owner
             );
-            return Ok(None);
+            return Ok(false);
         }
 
         tx.delete_blob(req.id)?;
-        Ok(Some(metadata))
+        Ok(true)
     });
 
-    let deleted = match result {
-        Ok(Some(deleted)) => deleted,
-        Ok(None) => return Response::resource_not_found(),
+    match result {
+        Ok(true) => {
+            debug!("Delete blob done, growing rev");
+            ctx.grow_rev();
+            Response::ok()
+        }
+        Ok(false) => Response::resource_not_found(),
         Err(e) => {
             error!("Failed to delete blob: {e:#}");
-            return Response::database_error();
+            Response::database_error()
         }
-    };
-
-    debug!("Delete blob done, sending event: {deleted:?}");
-    sc.notify_event(Event {
-        event_type: EventType::Delete,
-        items: vec![deleted],
-    })
-    .await;
-
-    Response::ok()
+    }
 }
 
 fn get_summary(blob: &Blob, text_width: usize) -> String {

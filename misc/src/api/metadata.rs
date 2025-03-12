@@ -12,6 +12,7 @@ use crate::{humanize, parse_from_map, time};
 use super::{QueryRequest, Request, RequestField};
 
 pub const METADATA_PATH: &str = "/v1/metadata";
+pub const STATE_PATH: &str = "/v1/state";
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Metadata {
@@ -138,29 +139,6 @@ impl BlobType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct Event {
-    pub event_type: EventType,
-    pub items: Vec<Metadata>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EventEstablished {
-    pub ok: bool,
-    pub salt: String,
-    pub message: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
-pub enum EventType {
-    #[serde(rename = "put")]
-    Put,
-    #[serde(rename = "update")]
-    Update,
-    #[serde(rename = "delete")]
-    Delete,
-}
-
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GetMetadataRequest {
     pub id: Option<u64>,
@@ -216,4 +194,10 @@ impl Request for GetMetadataRequest {
 
         Ok(())
     }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
+pub struct ServerState {
+    pub rev: Option<u64>,
+    pub latest: Option<Metadata>,
 }

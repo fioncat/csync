@@ -1,6 +1,7 @@
-use csync_misc::api::metadata::Event;
-use log::warn;
-use tokio::sync::mpsc;
+use std::cell::RefCell;
+use std::sync::Mutex;
+
+use csync_misc::api::metadata::{Metadata, ServerState};
 
 use crate::auth::jwt::{JwtTokenGenerator, JwtTokenValidator};
 use crate::config::ServerConfig;
@@ -14,7 +15,7 @@ pub struct ServerContext {
 
     pub cfg: ServerConfig,
 
-    pub event_tx: Option<mpsc::Sender<Event>>,
+    pub state: Mutex<RefCell<ServerState>>,
 }
 
 impl ServerContext {
@@ -25,15 +26,28 @@ impl ServerContext {
             jwt_generator: JwtTokenGenerator::new_test(),
             jwt_validator: JwtTokenValidator::new_test(),
             cfg: ServerConfig::default(),
-            event_tx: None,
+            state: Default::default(),
         }
     }
 
-    pub async fn notify_event(&self, event: Event) {
-        if let Some(ref tx) = self.event_tx {
-            if let Err(e) = tx.send(event).await {
-                warn!("failed to notify event channel: {:#}", e);
-            }
-        }
+    pub fn grow_rev(&self) {
+        let rev = self.state.lock().unwrap();
+        let cur = rev.borrow().rev.unwrap_or(0);
+        let new = cur + 1;
+        rev.borrow_mut().rev = Some(new);
+    }
+
+    pub fn update_latest(&self, latest: Metadata) {
+        let rev = self.state.lock().unwrap();
+        let cur = rev.borrow().rev.unwrap_or(0);
+
+        rev.replace(ServerState {
+            rev: Some(cur + 1),
+            latest: Some(latest),
+        });
+    }
+
+    pub fn get_state(&self) -> ServerState {
+        self.state.lock().unwrap().borrow().clone()
     }
 }

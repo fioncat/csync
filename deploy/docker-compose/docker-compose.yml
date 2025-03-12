@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  csync-server:
+    image: fioncat/csync:latest
+    container_name: csync-server
+    volumes:
+      - /etc/csync:/etc/csync
+      - /var/lib/csync:/var/lib/csync
+    restart: unless-stopped
+    network_mode: host

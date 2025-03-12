@@ -2,7 +2,6 @@ mod auth;
 mod config;
 mod context;
 mod db;
-mod events;
 mod handlers;
 mod recycle;
 mod request;
@@ -16,7 +15,6 @@ use config::ServerConfig;
 use csync_misc::config::ConfigArgs;
 use csync_misc::display;
 use log::{error, info};
-use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(author, version = env!("CSYNC_VERSION"), about)]
@@ -38,30 +36,12 @@ async fn run(args: ServerArgs) -> Result<()> {
 
     cfg.logs.init("server")?;
 
-    let (event_tx, event_rx) = mpsc::channel(100);
-
-    let ctx = cfg.build_ctx(event_tx)?;
-
-    let events_server = cfg.build_events_server(event_rx, ctx.clone())?;
+    let ctx = cfg.build_ctx()?;
 
     let resftul_server = cfg.build_restful_server(ctx.clone())?;
 
     tokio::spawn(async move {
         recycle::start_recycle(ctx).await;
-    });
-
-    tokio::spawn(async move {
-        match events_server.run().await {
-            Ok(()) => {
-                error!("Events server exited unexpectedly");
-                eprintln!("Error: events server exited");
-            }
-            Err(e) => {
-                error!("Events server error: {:#}", e);
-                eprintln!("Error: {:#}", e);
-            }
-        }
-        process::exit(1);
     });
 
     resftul_server.run().await.context("run restful server")?;

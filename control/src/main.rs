@@ -3,8 +3,8 @@ mod get;
 mod patch;
 mod put;
 mod select;
+mod state;
 mod version;
-mod watch;
 mod whoami;
 
 use std::process;
@@ -33,8 +33,8 @@ pub enum Commands {
     Patch(patch::PatchCommand),
     Put(put::PutCommand),
     Select(select::SelectArgs),
+    State(state::StateArgs),
     Version(version::VersionArgs),
-    Watch(watch::WatchArgs),
     Whoami(whoami::WhoamiArgs),
 }
 
@@ -47,8 +47,8 @@ impl RunCommand for App {
             Commands::Patch(args) => args.run().await,
             Commands::Put(args) => args.run().await,
             Commands::Select(args) => args.run().await,
+            Commands::State(args) => args.run().await,
             Commands::Version(args) => args.run().await,
-            Commands::Watch(args) => args.run().await,
             Commands::Whoami(args) => args.run().await,
         }
     }

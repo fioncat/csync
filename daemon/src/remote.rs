@@ -1,20 +1,20 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
 use chrono::Utc;
 use csync_misc::api::blob::{Blob, PatchBlobRequest};
-use csync_misc::api::metadata::{Event, EventType, GetMetadataRequest, Metadata};
+use csync_misc::api::metadata::{GetMetadataRequest, Metadata, ServerState};
 use csync_misc::api::{ListResponse, QueryRequest};
-use csync_misc::client::events::EventsChannel;
 use csync_misc::client::restful::RestfulClient;
-use log::{debug, info, warn};
+use log::{debug, error, info};
 use tokio::select;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
-    sub_tx: mpsc::Sender<SubscribeRequest>,
+    get_state_tx: mpsc::Sender<GetStateRequest>,
     get_metadatas_tx: mpsc::Sender<GetMetadatasRequest>,
     put_blob_tx: mpsc::Sender<PutBlobRequest>,
     get_blob_tx: mpsc::Sender<GetBlobRequest>,
@@ -22,17 +22,9 @@ pub struct Remote {
     pin_blob_tx: mpsc::Sender<PinBlobRequest>,
 }
 
-#[derive(Debug)]
-pub struct EventsNotify {
-    pub events: broadcast::Receiver<Event>,
-    pub states: broadcast::Receiver<bool>,
-}
-
 impl Remote {
-    pub fn start(client: RestfulClient, cache_seconds: u64, events_sub: EventsChannel) -> Self {
-        let (events_notify, _) = broadcast::channel(500);
-        let (events_error_notify, _) = broadcast::channel(100);
-        let (sub_tx, sub_rx) = mpsc::channel(500);
+    pub fn start(client: RestfulClient, cache_seconds: u64) -> Self {
+        let (get_state_tx, get_state_rx) = mpsc::channel(500);
         let (get_metadatas_tx, get_metadatas_rx) = mpsc::channel(500);
         let (put_blob_tx, put_blob_rx) = mpsc::channel(500);
         let (get_blob_tx, get_blob_rx) = mpsc::channel(500);
@@ -41,12 +33,11 @@ impl Remote {
 
         let handler = RemoteHandler {
             client,
+            state: None,
+            state_error: false,
             blobs_cache: HashMap::new(),
             cache_seconds,
-            events_sub,
-            events_notify,
-            events_error_notify,
-            sub_rx,
+            get_state_rx,
             get_metadatas_rx,
             put_blob_rx,
             get_blob_rx,
@@ -58,7 +49,7 @@ impl Remote {
         });
 
         Self {
-            sub_tx,
+            get_state_tx,
             get_metadatas_tx,
             put_blob_tx,
             get_blob_tx,
@@ -67,10 +58,10 @@ impl Remote {
         }
     }
 
-    pub async fn subscribe(&self) -> EventsNotify {
+    pub async fn get_state(&self) -> (Option<Arc<ServerState>>, bool) {
         let (resp_tx, resp_rx) = oneshot::channel();
-        self.sub_tx
-            .send(SubscribeRequest { resp: resp_tx })
+        self.get_state_tx
+            .send(GetStateRequest { resp: resp_tx })
             .await
             .unwrap();
         resp_rx.await.unwrap()
@@ -132,8 +123,8 @@ impl Remote {
     }
 }
 
-struct SubscribeRequest {
-    resp: oneshot::Sender<EventsNotify>,
+struct GetStateRequest {
+    resp: oneshot::Sender<(Option<Arc<ServerState>>, bool)>,
 }
 
 struct GetMetadatasRequest {
@@ -169,15 +160,13 @@ struct CacheBlob {
 
 struct RemoteHandler {
     client: RestfulClient,
+    state: Option<Arc<ServerState>>,
+    state_error: bool,
 
     blobs_cache: HashMap<u64, CacheBlob>,
     cache_seconds: u64,
 
-    events_sub: EventsChannel,
-    events_notify: broadcast::Sender<Event>,
-    events_error_notify: broadcast::Sender<bool>,
-
-    sub_rx: mpsc::Receiver<SubscribeRequest>,
+    get_state_rx: mpsc::Receiver<GetStateRequest>,
     get_metadatas_rx: mpsc::Receiver<GetMetadatasRequest>,
     put_blob_rx: mpsc::Receiver<PutBlobRequest>,
     get_blob_rx: mpsc::Receiver<GetBlobRequest>,
@@ -188,20 +177,18 @@ struct RemoteHandler {
 impl RemoteHandler {
     async fn main_loop(mut self) {
         let mut recycle_cache_intv = tokio::time::interval(Duration::from_secs(self.cache_seconds));
+        let mut refresh_state_intv = tokio::time::interval(Duration::from_secs(1));
         info!("Begin to handle remote requests");
 
         loop {
             select! {
-                Some(event) = self.events_sub.events.recv() => {
-                    self.handle_event(event).await;
-                }
+                _ = refresh_state_intv.tick() => {
+                    self.refresh_state().await;
+                },
 
-                Some(state) = self.events_sub.states.recv() => {
-                    self.handle_event_error(state).await;
-                }
-
-                Some(req) = self.sub_rx.recv() => {
-                    self.handle_subscribe(req).await;
+                Some(req) = self.get_state_rx.recv() => {
+                    let result = self.handle_get_state().await;
+                    req.resp.send(result).unwrap();
                 }
 
                 Some(req) = self.get_metadatas_rx.recv() => {
@@ -236,45 +223,39 @@ impl RemoteHandler {
         }
     }
 
-    async fn handle_event(&mut self, event: Event) {
-        debug!("Receive server event: {:#?}, notify to subscribers", event);
-
-        if matches!(event.event_type, EventType::Delete) {
-            for item in event.items.iter() {
-                self.blobs_cache.remove(&item.id);
+    async fn refresh_state(&mut self) {
+        let latest_state = match self.client.get_state().await {
+            Ok(rev) => rev,
+            Err(e) => {
+                if self.state_error {
+                    debug!("Get state still failed: {e:#}");
+                } else {
+                    error!("Get state from server error: {e:#}");
+                    self.state_error = true;
+                }
+                return;
             }
+        };
+
+        if self.state_error {
+            info!("Server state error recovered");
+            self.state_error = false;
         }
 
-        if self.events_notify.receiver_count() == 0 {
-            warn!("No subscriber, ignore server event: {:#?}", event);
-            return;
+        if let Some(ref old_state) = self.state {
+            if old_state.as_ref() == &latest_state {
+                return;
+            }
+            debug!("Server state updated from {old_state:?} to {latest_state:?}");
+        } else {
+            debug!("First time getting server state {latest_state:?}");
         }
 
-        self.events_notify.send(event).unwrap();
+        self.state = Some(Arc::new(latest_state));
     }
 
-    async fn handle_event_error(&mut self, state: bool) {
-        debug!("Receive events state: {state}");
-
-        if self.events_error_notify.receiver_count() == 0 {
-            warn!("No error subscriber, ignore server events state: {state}");
-            return;
-        }
-
-        self.events_error_notify.send(state).unwrap();
-    }
-
-    async fn handle_subscribe(&self, req: SubscribeRequest) {
-        debug!("Allocate a new events subscriber");
-
-        let sub_rx = self.events_notify.subscribe();
-        let errors_rx = self.events_error_notify.subscribe();
-        req.resp
-            .send(EventsNotify {
-                events: sub_rx,
-                states: errors_rx,
-            })
-            .unwrap();
+    async fn handle_get_state(&mut self) -> (Option<Arc<ServerState>>, bool) {
+        (self.state.clone(), self.state_error)
     }
 
     async fn handle_get_metadatas(&mut self, limit: u64) -> Result<ListResponse<Metadata>> {

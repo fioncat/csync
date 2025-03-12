@@ -1,0 +1,27 @@
+namespace: "default"
+
+image: "fioncat/csync:latest"
+
+port: 13577
+ssl: false
+
+admin_password: "default_admin_password@test_only"
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "300Mi"
+  limits:
+    cpu: "2000m"
+    memory: "1G"
+
+pvc:
+  storageClass: "ssd"
+  size: "20Gi"
+  accessModes: ["ReadWriteOnce"]
+
+service:
+  annotations: {}
+  type: ClusterIP
+
+config: {}

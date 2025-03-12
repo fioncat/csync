@@ -1,0 +1,15 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: csync-server
+  namespace: "{{ .Values.namespace }}"
+  annotations:
+    {{- toYaml .Values.service.annotations | nindent 4 }}
+spec:
+  selector:
+    app: csync-server
+  type: "{{ .Values.service.type }}"
+  ports:
+  - protocol: TCP
+    port: {{ .Values.port }}
+    targetPort: {{ .Values.port }}
