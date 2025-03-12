@@ -26,6 +26,9 @@ pub struct ClientConfig {
     #[serde(default = "ClientConfig::default_password")]
     pub password: String,
 
+    #[serde(default = "ClientConfig::default_timeout_secs")]
+    pub timeout_secs: u64,
+
     #[serde(default)]
     pub logs: LogsConfig,
 }
@@ -38,6 +41,7 @@ impl Default for ClientConfig {
             accept_invalid_certs: false,
             username: Self::default_username(),
             password: Self::default_password(),
+            timeout_secs: Self::default_timeout_secs(),
             logs: LogsConfig::default(),
         }
     }
@@ -58,6 +62,18 @@ impl CommonConfig for ClientConfig {
             bail!("password is required");
         }
 
+        if self.timeout_secs == 0 {
+            bail!("timeout_secs is required");
+        }
+
+        if self.timeout_secs < Self::MIN_TIMEOUT || self.timeout_secs > Self::MAX_TIMEOUT {
+            bail!(
+                "timeout_secs must be between {} and {}",
+                Self::MIN_TIMEOUT,
+                Self::MAX_TIMEOUT
+            );
+        }
+
         self.logs.complete(ps).context("logs")?;
 
         Ok(())
@@ -65,12 +81,16 @@ impl CommonConfig for ClientConfig {
 }
 
 impl ClientConfig {
+    const MIN_TIMEOUT: u64 = 1;
+    const MAX_TIMEOUT: u64 = 120;
+
     pub async fn connect_restful(&self, use_token: bool) -> Result<RestfulClient> {
         info!("Connecting to restful server: {}", self.server);
 
         let client = RestfulClientBuilder::new(&self.server, &self.username, &self.password)
             .accept_invalid_certs(self.accept_invalid_certs)
             .use_token(use_token)
+            .with_timeout(self.timeout_secs)
             .connect()
             .await?;
 
@@ -95,5 +115,9 @@ impl ClientConfig {
 
     fn default_password() -> String {
         String::from("admin_password123")
+    }
+
+    fn default_timeout_secs() -> u64 {
+        5
     }
 }

@@ -8,7 +8,13 @@ data:
     bind = "0.0.0.0:{{ .Values.port }}"
     ssl = {{ .Values.ssl }}
     admin_password = "{{ .Values.admin_password }}"
-    {{- toToml .Values.config | nindent 4 }}
+    recycle_hours = {{ .Values.config.recycleHours }}
+    truncate_text_width = {{ .Values.config.truncateTextWidth }}
+    salt_length = {{ .Values.config.saltLength }}
+    token_expiration_secs = {{ .Values.config.tokenExpirationSecs }}
+    keep_alive_secs = {{ .Values.config.keep_alive_secs }}
+    workers = {{ .Values.config.workers }}
+    payload_limit_mib = {{ .Values.config.payloadLimitMib }}
 
   client.toml: |
     server = "{{ ternary "https" "http" .Values.ssl }}://127.0.0.1:{{ .Values.port }}"

@@ -24,4 +24,11 @@ service:
   annotations: {}
   type: ClusterIP
 
-config: {}
+config:
+  recycleHours: 24
+  truncateTextWidth: 40
+  saltLength: 24
+  tokenExpirationSecs: 3600
+  keepAliveSecs: 10
+  workers: 2
+  payloadLimitMib: 5
