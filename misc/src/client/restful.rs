@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -34,6 +35,8 @@ pub struct RestfulClientBuilder {
     accept_invalid_certs: bool,
 
     use_token: bool,
+
+    timeout: Option<u64>,
 }
 
 impl RestfulClient {
@@ -349,6 +352,7 @@ impl RestfulClientBuilder {
             basic_auth,
             accept_invalid_certs: false,
             use_token: false,
+            timeout: None,
         }
     }
 
@@ -359,6 +363,11 @@ impl RestfulClientBuilder {
 
     pub fn use_token(mut self, use_token: bool) -> Self {
         self.use_token = use_token;
+        self
+    }
+
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 
@@ -383,7 +392,8 @@ impl RestfulClientBuilder {
             );
         }
 
-        let client = if self.accept_invalid_certs && parsed.scheme() == "https" {
+        let mut client = reqwest::Client::builder();
+        if self.accept_invalid_certs && parsed.scheme() == "https" {
             // FIXME: Due to unknown reasons, reqwest's `add_root_certificate`
             // call for self-signed certificates does not work properly.
             // Therefore, we have to use `danger_accept_invalid_certs` to
@@ -391,13 +401,14 @@ impl RestfulClientBuilder {
             //   <https://github.com/seanmonstar/reqwest/issues/1554>
             // to be resolved before we can remove this call for self-signed
             // certificates.
-            reqwest::Client::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .context("build https client")?
-        } else {
-            reqwest::Client::new()
-        };
+            client = client.danger_accept_invalid_certs(true);
+        }
+
+        if let Some(timeout) = self.timeout {
+            client = client.timeout(Duration::from_secs(timeout));
+        }
+
+        let client = client.build().context("build restful client")?;
 
         let mut client = RestfulClient {
             url: self.url,
