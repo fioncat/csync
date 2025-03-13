@@ -40,6 +40,13 @@ Csync has 3 binary files:
 
 Please refer to `<cmd> --help` for more usage.
 
+## Integration
+
+- [fzf](https://github.com/junegunn/fzf): `csynctl select -d`
+- [rofi](https://github.com/davatorium/rofi): `csynctl select -dr 'rofi -i -dmenu -p "󰅍  Clipboard"'`
+- [flameshot](https://flameshot.org/): `flameshot gui -r | csynctl put blob`
+- [albert](https://albertlauncher.github.io/): See [Albert Plugin](./albert).
+
 ## Security
 
 Since csync transmits clipboard data over the network, security is a top priority. The following security measures are implemented:
