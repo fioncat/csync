@@ -12,6 +12,10 @@ pub struct BlobArgs {
     /// The id of the blob to download
     pub id: u64,
 
+    /// Write content to daemon
+    #[arg(short, long)]
+    pub daemon: bool,
+
     #[command(flatten)]
     pub config: ConfigArgs,
 }
@@ -24,6 +28,14 @@ impl RunCommand for BlobArgs {
         let mut client = cfg.connect_restful(false).await?;
 
         let blob = client.get_blob(self.id).await?;
+
+        if self.daemon {
+            let mut daemon = cfg.connect_daemon().await?;
+            daemon.send(&blob.data).await?;
+
+            return Ok(());
+        }
+
         blob.write(&ps)?;
 
         Ok(())
