@@ -81,7 +81,7 @@ fn tokio_main(ps: PathSet, client_cfg: ClientConfig, daemon_cfg: DaemonConfig) -
     {
         Ok(rt) => rt,
         Err(e) => {
-            eprintln!("Failed to create tokio runtime: {:#}", e);
+            eprintln!("Failed to create tokio runtime: {e:#}");
             process::exit(2);
         }
     };
@@ -91,7 +91,7 @@ fn tokio_main(ps: PathSet, client_cfg: ClientConfig, daemon_cfg: DaemonConfig) -
                 info!("Daemon exited successfully");
             }
             Err(e) => {
-                eprintln!("Daemon error: {:#}", e);
+                eprintln!("Daemon error: {e:#}");
                 process::exit(1);
             }
         }
@@ -129,7 +129,7 @@ fn main() {
     match blocking_main(args) {
         Ok(_) => {}
         Err(e) => {
-            eprintln!("Error: {:#}", e);
+            eprintln!("Error: {e:#}");
             process::exit(1);
         }
     }

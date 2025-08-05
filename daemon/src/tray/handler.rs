@@ -214,7 +214,7 @@ impl TrayHandler {
     }
 
     fn handle_open_config(&self, app: AppHandle, kind: &str) -> Result<Option<&'static str>> {
-        let path = self.ps.config_dir.join(format!("{}.toml", kind));
+        let path = self.ps.config_dir.join(format!("{kind}.toml"));
         if !path.exists() {
             return Ok(Some("No config file found"));
         }

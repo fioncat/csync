@@ -56,7 +56,7 @@ async fn main() {
     match run(args).await {
         Ok(()) => {}
         Err(e) => {
-            eprintln!("Error: {:#}", e);
+            eprintln!("Error: {e:#}");
             process::exit(1);
         }
     }

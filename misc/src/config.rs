@@ -80,7 +80,7 @@ impl ConfigArgs {
     where
         C: CommonConfig + DeserializeOwned,
     {
-        let path = ps.config_dir.join(format!("{}.toml", name));
+        let path = ps.config_dir.join(format!("{name}.toml"));
 
         let mut cfg = if path.try_exists().context("check config file exists")? {
             let data = fs::read_to_string(&path)?;

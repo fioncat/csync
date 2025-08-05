@@ -106,7 +106,7 @@ pub fn delete(tx: &Transaction, id: u64) -> Result<()> {
 
 pub fn delete_batch(tx: &Transaction, ids: Vec<u64>) -> Result<u64> {
     let placeholders = vec!["?"; ids.len()].join(",");
-    let sql = format!("DELETE FROM blob WHERE id IN ({})", placeholders);
+    let sql = format!("DELETE FROM blob WHERE id IN ({placeholders})");
     debug!("Database delete_blob_batch: {sql}, {ids:?}");
     let count = tx.execute(&sql, params_from_iter(ids.iter()))?;
     Ok(count as u64)

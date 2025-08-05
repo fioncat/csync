@@ -105,7 +105,7 @@ impl FileLock {
 impl Drop for FileLock {
     fn drop(&mut self) {
         if let Err(e) = fs::remove_file(&self.path) {
-            warn!("Remove global lock file failed: {:#}", e);
+            warn!("Remove global lock file failed: {e:#}");
         }
     }
 }

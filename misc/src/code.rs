@@ -40,5 +40,5 @@ where
     T: AsRef<[u8]>,
 {
     let hash = Sha256::digest(input);
-    format!("{:x}", hash)
+    format!("{hash:x}")
 }

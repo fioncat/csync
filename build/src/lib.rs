@@ -44,7 +44,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     let mut version = exec_git(&["describe", "--tags"]);
     if uncommitted_count() > 0 {
-        version = format!("{}-dirty", version);
+        version = format!("{version}-dirty");
     }
 
     println!("cargo:rustc-env=CSYNC_VERSION={version}");

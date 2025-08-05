@@ -48,9 +48,9 @@ pub enum Value {
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Text(text) => write!(f, "{}", text),
-            Value::Integer(integer) => write!(f, "{}", integer),
-            Value::Bool(boolean) => write!(f, "{}", boolean),
+            Value::Text(text) => write!(f, "{text}"),
+            Value::Integer(integer) => write!(f, "{integer}"),
+            Value::Bool(boolean) => write!(f, "{boolean}"),
         }
     }
 }

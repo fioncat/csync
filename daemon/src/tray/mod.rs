@@ -76,7 +76,7 @@ impl SystemTray {
             .on_window_event(|window, event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     if let Err(e) = window.hide() {
-                        error!("Hide window error: {:#}", e);
+                        error!("Hide window error: {e:#}");
                     }
                     api.prevent_close();
                 }

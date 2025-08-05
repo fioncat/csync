@@ -115,7 +115,7 @@ impl FromStr for BlobType {
             "text" => Ok(BlobType::Text),
             "image" => Ok(BlobType::Image),
             "file" => Ok(BlobType::File),
-            _ => Err(format!("invalid blob type '{}'", s)),
+            _ => Err(format!("invalid blob type '{s}'")),
         }
     }
 }

@@ -62,19 +62,19 @@ impl ClipboardSync {
             select! {
                 _ = server_intv.tick() => {
                     if let Err(e) = self.handle_server().await {
-                        error!("Handle server error: {:#}", e);
+                        error!("Handle server error: {e:#}");
                     }
                 }
 
                 _ = clipboard_intv.tick() => {
                     if let Err(e) = self.sync_clipboard().await {
-                        error!("Sync clipboard error: {:#}", e);
+                        error!("Sync clipboard error: {e:#}");
                     }
                 }
 
                 Some(data) = self.copy_rx.recv() => {
                     if let Err(e) = self.handle_copy(data) {
-                        error!("Handle copy error: {:#}", e);
+                        error!("Handle copy error: {e:#}");
                     }
                 }
             }

@@ -259,7 +259,7 @@ impl RemoteHandler {
     }
 
     async fn handle_get_metadatas(&mut self, limit: u64) -> Result<ListResponse<Metadata>> {
-        debug!("Get metadatas from server with limit: {}", limit);
+        debug!("Get metadatas from server with limit: {limit}");
 
         self.client
             .get_metadatas(GetMetadataRequest {
@@ -273,12 +273,12 @@ impl RemoteHandler {
     }
 
     async fn handle_put_blob(&mut self, blob: Blob) -> Result<()> {
-        debug!("Put blob to server: {:#?}", blob);
+        debug!("Put blob to server: {blob:#?}");
         self.client.put_blob(blob).await
     }
 
     async fn handle_get_blob(&mut self, id: u64) -> Result<Blob> {
-        debug!("Get blob from server with id: {}", id);
+        debug!("Get blob from server with id: {id}");
 
         if let Some(cached) = self.blobs_cache.get(&id) {
             debug!("Get blob from cache: {id}");
@@ -299,14 +299,14 @@ impl RemoteHandler {
     }
 
     async fn handle_delete_blob(&mut self, id: u64) -> Result<()> {
-        debug!("Delete blob from server with id: {}", id);
+        debug!("Delete blob from server with id: {id}");
 
         self.blobs_cache.remove(&id);
         self.client.delete_blob(id).await
     }
 
     async fn handle_pin_blob(&mut self, id: u64, pin: bool) -> Result<()> {
-        debug!("Pin blob from server with id: {} to {}", id, pin);
+        debug!("Pin blob from server with id: {id} to {pin}");
         self.client
             .patch_blob(PatchBlobRequest { id, pin: Some(pin) })
             .await
@@ -322,7 +322,7 @@ impl RemoteHandler {
         }
 
         for id in expired {
-            debug!("Recycle cache blob: {}", id);
+            debug!("Recycle cache blob: {id}");
             self.blobs_cache.remove(&id);
         }
     }

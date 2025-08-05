@@ -16,7 +16,7 @@ async fn get_metadata(
     if !op.admin {
         req.owner = Some(op.name.clone());
     }
-    debug!("Get metadata: {:?}", req);
+    debug!("Get metadata: {req:?}");
 
     let result = ctx.db.with_transaction(|tx| {
         let items = tx.get_metadatas(req.clone())?;

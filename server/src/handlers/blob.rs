@@ -32,10 +32,7 @@ async fn put_blob(req: Blob, op: User, ctx: &ServerContext) -> Response<()> {
         };
         let duplicates = tx.get_metadatas(sha256_query)?;
         if !duplicates.is_empty() {
-            debug!(
-                "Found duplicate blobs with sha256 {}: {:?}, delete them",
-                sha256, duplicates
-            );
+            debug!("Found duplicate blobs with sha256 {sha256}: {duplicates:?}, delete them",);
             let ids: Vec<_> = duplicates.iter().map(|m| m.id).collect();
             tx.delete_blobs(ids)?;
         }

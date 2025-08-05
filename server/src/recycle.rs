@@ -9,7 +9,7 @@ use crate::context::ServerContext;
 
 pub async fn start_recycle(ctx: Arc<ServerContext>) {
     let intv_secs = ctx.cfg.recycle_seconds;
-    info!("Recycle loop starting, interval: {}s", intv_secs);
+    info!("Recycle loop starting, interval: {intv_secs}s");
     let mut tk = tokio::time::interval(Duration::from_secs(intv_secs));
     loop {
         let _ = tk.tick().await;
@@ -26,7 +26,7 @@ pub async fn start_recycle(ctx: Arc<ServerContext>) {
                 let metadatas = tx.get_metadatas(req)?;
                 let ids: Vec<_> = metadatas.iter().map(|m| m.id).collect();
 
-                info!("Begin to recycle expired blobs: {:?}", ids);
+                info!("Begin to recycle expired blobs: {ids:?}");
                 let count = tx.delete_blobs(ids)?;
                 info!("Recycled {count} blobs");
 
@@ -43,7 +43,7 @@ pub async fn start_recycle(ctx: Arc<ServerContext>) {
                 ctx.grow_rev();
             }
             Err(e) => {
-                error!("Failed to recycle blobs: {:#}", e);
+                error!("Failed to recycle blobs: {e:#}");
             }
         }
     }

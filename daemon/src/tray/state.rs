@@ -91,7 +91,7 @@ impl TrayStateHandler {
         if rev == self.data.rev {
             return;
         }
-        info!("Server rev updated: {}, need refresh system tray", rev);
+        info!("Server rev updated: {rev}, need refresh system tray");
         self.data.rev = rev;
         self.updated = true;
     }

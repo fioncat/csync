@@ -128,7 +128,7 @@ impl SelectArgs {
         let mut child = c.spawn().context("launch select command")?;
 
         let handle = child.stdin.as_mut().unwrap();
-        if let Err(err) = write!(handle, "{}", input) {
+        if let Err(err) = write!(handle, "{input}") {
             return Err(err).context("write data to select command");
         }
 

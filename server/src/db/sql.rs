@@ -88,12 +88,12 @@ impl Select {
 
         if !self.wheres.is_empty() {
             let where_clause = self.wheres.join(" AND ");
-            sql.push_str(&format!(" WHERE {}", where_clause));
+            sql.push_str(&format!(" WHERE {where_clause}"));
         }
 
         if !self.order_by.is_empty() {
             let order_by = self.order_by.join(", ");
-            sql.push_str(&format!(" ORDER BY {}", order_by));
+            sql.push_str(&format!(" ORDER BY {order_by}"));
         }
 
         if self.limit {
@@ -143,14 +143,14 @@ impl Update {
         let set = self
             .fields
             .iter()
-            .map(|f| format!("{} = ?", f))
+            .map(|f| format!("{f} = ?"))
             .collect::<Vec<_>>()
             .join(", ");
         sql.push_str(&set);
 
         if !self.wheres.is_empty() {
             let where_clause = self.wheres.join(" AND ");
-            sql.push_str(&format!(" WHERE {}", where_clause));
+            sql.push_str(&format!(" WHERE {where_clause}"));
         }
 
         (sql, self.values)

@@ -95,7 +95,7 @@ where
         }
         DisplayStyle::Json => {
             let json = serde_json::to_string_pretty(&list)?;
-            println!("{}", json);
+            println!("{json}");
         }
     }
     Ok(())

@@ -187,11 +187,7 @@ impl RestfulClient {
         };
 
         let now = Utc::now().timestamp() as u64;
-        let delta = if now > health.timestamp {
-            now - health.timestamp
-        } else {
-            health.timestamp - now
-        };
+        let delta = now.abs_diff(health.timestamp);
         if delta > Self::MINIMAL_TIME_DIFF_SECS {
             bail!("time diff too large from server, please check your system clock");
         }
@@ -278,7 +274,7 @@ impl RestfulClient {
             } else {
                 format!("{}?{}", url, kvs.join("&"))
             };
-            debug!("Request server with fields: {}", url);
+            debug!("Request server with fields: {url}");
             self.client.request(method, &url)
         };
 
@@ -345,7 +341,7 @@ impl RestfulClient {
 impl RestfulClientBuilder {
     pub fn new(url: &str, username: &str, password: &str) -> Self {
         let pwd_base64 = code::base64_encode(password);
-        let basic_auth = format!("{}:{}", username, pwd_base64);
+        let basic_auth = format!("{username}:{pwd_base64}");
 
         Self {
             url: url.trim_end_matches('/').to_string(),
