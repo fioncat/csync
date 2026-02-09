@@ -9,7 +9,7 @@ anyhow = "^1"
 chrono = "^0"
 clap = { version = "^4", features = ["derive"] }
 csync_misc = { path = "../misc" }
-jsonwebtoken = "^9"
+jsonwebtoken = "^10"
 log = "^0"
 openssl = "^0"
 paste = "^1"
